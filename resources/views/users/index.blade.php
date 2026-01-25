@@ -1,0 +1,340 @@
+<x-app-layout>
+  <div class="p-6">
+    @if (session('success'))
+      <div class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+        {{ session('success') }}
+      </div>
+    @endif
+
+    @if ($errors->any())
+      <div class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+        <ul class="list-disc list-inside">
+          @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+          @endforeach
+        </ul>
+      </div>
+    @endif
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-white"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">User Management</h1>
+          <p class="text-sm text-gray-500">Kelola akun pengguna sistem</p>
+        </div>
+      </div>
+      <button onclick="openModal('add')"
+              class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-2">
+        <svg class="w-5 h-5"
+             fill="none"
+             stroke="currentColor"
+             viewBox="0 0 24 24">
+          <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4v16m8-8H4" />
+        </svg>
+        Tambah User
+      </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl p-6 border border-gray-200">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-500"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Total Users</p>
+            <p class="text-2xl font-bold text-blue-500">{{ $totalUsers }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-6 border border-gray-200">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-500"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Active</p>
+            <p class="text-2xl font-bold text-green-500">{{ $activeUsers }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-6 border border-gray-200">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6 text-red-500"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Inactive</p>
+            <p class="text-2xl font-bold text-red-500">{{ $inactiveUsers }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+      <!-- Search -->
+      <div class="p-4 border-b border-gray-200">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text"
+                 id="searchInput"
+                 placeholder="Cari username, nama, email, atau role..."
+                 class="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Lengkap</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200"
+                 id="userTableBody">
+            @foreach ($users as $user)
+              <tr class="hover:bg-gray-50 transition">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div>
+                    <div class="text-sm font-medium text-gray-900">{{ strtolower(str_replace(' ', '', $user->name)) }}</div>
+                    <div class="text-xs text-gray-500">ID: USER-{{ $user->id }}</div>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">{{ $user->name }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">{{ $user->email }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">{{ $user->profile->phone ?? '-' }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  @if ($user->roles->first())
+                    @php
+                      $roleName = $user->roles->first()->name;
+                      $roleColor = match ($roleName) {
+                          'Administrator' => 'bg-purple-100 text-purple-700',
+                          'Manager' => 'bg-blue-100 text-blue-700',
+                          'Cashier' => 'bg-pink-100 text-pink-700',
+                          'Waiter/Server' => 'bg-indigo-100 text-indigo-700',
+                          default => 'bg-gray-100 text-gray-700',
+                      };
+                    @endphp
+                    <span class="px-2 py-1 text-xs font-medium rounded-full {{ $roleColor }}">
+                      {{ $roleName }}
+                    </span>
+                  @else
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">No Role</span>
+                  @endif
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">{{ $user->internalUser->area->name ?? '-' }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  @if ($user->internalUser->is_active)
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">Active</span>
+                  @else
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">Inactive</span>
+                  @endif
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">{{ $user->updated_at ? $user->updated_at->format('d/m/Y, H:i') : '-' }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div class="flex items-center gap-2">
+                    <button onclick="editUser({{ $user->id }})"
+                            class="text-blue-600 hover:text-blue-900">
+                      <svg class="w-5 h-5"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onclick="deleteUser({{ $user->id }})"
+                            class="text-red-600 hover:text-red-900">
+                      <svg class="w-5 h-5"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  @include('users._components.add-edit-modal')
+
+  <!-- Delete Modal -->
+  @include('users._components.delete-confirmation-modal')
+
+  @push('scripts')
+    <script>
+      const users = @json($users);
+
+      function openModal(mode, userId = null) {
+        const modal = document.getElementById('userModal');
+        const form = document.getElementById('userForm');
+        const modalTitle = document.getElementById('modalTitle');
+        const formMethod = document.getElementById('formMethod');
+        const passwordRequired = document.getElementById('passwordRequired');
+        const passwordHint = document.getElementById('passwordHint');
+        const passwordInput = document.getElementById('password');
+
+        if (mode === 'add') {
+          modalTitle.textContent = 'Tambah User';
+          form.action = '{{ route('admin.users.store') }}';
+          formMethod.value = 'POST';
+          form.reset();
+          document.getElementById('is_active').checked = true;
+          passwordRequired.style.display = 'inline';
+          passwordHint.style.display = 'none';
+          passwordInput.required = true;
+        } else if (mode === 'edit' && userId) {
+          const user = users.find(u => u.id === userId);
+          if (user) {
+            modalTitle.textContent = 'Edit User';
+            form.action = `/admin/users/${userId}`;
+            formMethod.value = 'PUT';
+
+            document.getElementById('name').value = user.name;
+            document.getElementById('email').value = user.email;
+            document.getElementById('phone').value = user.profile?.phone || '';
+            document.getElementById('birth_date').value = user.profile?.birth_date || '';
+            document.getElementById('address').value = user.profile?.address || '';
+            document.getElementById('role_id').value = user.roles[0]?.id || '';
+            document.getElementById('area_id').value = user.internal_user?.area_id || '';
+            document.getElementById('is_active').checked = user.internal_user?.is_active || false;
+
+            passwordRequired.style.display = 'none';
+            passwordHint.style.display = 'block';
+            passwordInput.required = false;
+            passwordInput.value = '';
+          }
+        }
+
+        modal.classList.remove('hidden');
+      }
+
+      function closeModal() {
+        document.getElementById('userModal').classList.add('hidden');
+      }
+
+      function editUser(userId) {
+        openModal('edit', userId);
+      }
+
+      function deleteUser(userId) {
+        const form = document.getElementById('deleteForm');
+        form.action = `/admin/users/${userId}`;
+        document.getElementById('deleteModal').classList.remove('hidden');
+      }
+
+      function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.add('hidden');
+      }
+
+      // Search functionality
+      document.getElementById('searchInput').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const tableBody = document.getElementById('userTableBody');
+        const rows = tableBody.getElementsByTagName('tr');
+
+        Array.from(rows).forEach(row => {
+          const text = row.textContent.toLowerCase();
+          row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+      });
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          closeModal();
+          closeDeleteModal();
+        }
+      });
+
+      // Close modal on outside click
+      document.getElementById('userModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+      });
+
+      document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) closeDeleteModal();
+      });
+    </script>
+  @endpush
+</x-app-layout>

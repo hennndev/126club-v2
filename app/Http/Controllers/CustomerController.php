@@ -1,0 +1,177 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\CustomerUser;
+use App\Models\User;
+use App\Models\UserProfile;
+use App\Services\AccurateService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class CustomerController extends Controller
+{
+  protected $accurateService;
+  public function __construct(AccurateService $accurateService)
+  {
+    $this->accurateService = $accurateService;
+  }
+
+  public function index(Request $request)
+  {
+    $query = CustomerUser::with(['user', 'profile']);
+
+    if ($request->has('search') && $request->search != '') {
+      $search = $request->search;
+      $query->where(function ($q) use ($search) {
+        $q->where('customer_code', 'like', "%{$search}%")
+          ->orWhereHas('user', function ($userQuery) use ($search) {
+            $userQuery->where('name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%");
+          })
+          ->orWhereHas('profile', function ($profileQuery) use ($search) {
+            $profileQuery->where('phone', 'like', "%{$search}%");
+          });
+      });
+    }
+
+    $customers = $query->latest('updated_at')->get();
+
+    $totalCustomers = CustomerUser::count();
+    $totalSpending = CustomerUser::sum('lifetime_spending');
+    $totalVisits = CustomerUser::sum('total_visits');
+    $avgSpending = CustomerUser::avg('lifetime_spending');
+
+    // Leaderboard data
+    $leaderboard = CustomerUser::with(['user', 'profile'])
+      ->orderBy('lifetime_spending', 'desc')
+      ->take(10)
+      ->get();
+    return view('customers.index', compact(
+      'customers',
+      'totalCustomers',
+      'totalSpending',
+      'totalVisits',
+      'avgSpending',
+      'leaderboard'
+    ));
+  }
+
+  public function store(Request $request)
+  {
+    $validated = $request->validate([
+      'name' => 'required|string|max:255',
+      'email' => 'required|email|unique:users,email',
+      'password' => 'required|string|min:8',
+      'phone' => 'nullable|string|max:20',
+      'address' => 'nullable|string',
+      'birth_date' => 'nullable|date',
+    ]);
+    $accurateId = null;
+    try {
+      DB::beginTransaction();
+
+
+      $user = User::create([
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'password' => Hash::make($validated['password']),
+      ]);
+      $payload = [
+        "name" => $validated['name'],
+        "email" => $validated['email'],
+      ];
+      // Create user profile
+      $profile = UserProfile::create([
+        'user_id' => $user->id,
+        'phone' => $validated['phone'] ?? null,
+        'address' => $validated['address'] ?? null,
+        'birth_date' => $validated['birth_date'] ?? null,
+      ]);
+
+      $response = $this->accurateService->saveCustomer($payload);
+      $accurateId = $response['r']['id'];
+      $customerNo = $response['r']['customerNo'];
+      CustomerUser::create([
+        'accurate_id' => $accurateId,
+        'customer_code' => $customerNo,
+        'user_id' => $user->id,
+        'user_profile_id' => $profile->id,
+        'total_visits' => 0,
+        'lifetime_spending' => 0,
+      ]);
+
+      DB::commit();
+
+      return redirect()->route('admin.customers.index')
+        ->with('success', 'Customer berhasil ditambahkan');
+    } catch (\Exception $e) {
+      DB::rollBack();
+      return back()->withErrors(['error' => 'Gagal menambahkan customer: ' . $e->getMessage()]);
+    }
+  }
+
+  public function update(Request $request, CustomerUser $customer)
+  {
+    $validated = $request->validate([
+      'name' => 'required|string|max:255',
+      'email' => 'required|email|unique:users,email,' . $customer->user_id,
+      'password' => 'nullable|string|min:8',
+      'phone' => 'nullable|string|max:20',
+      'address' => 'nullable|string',
+      'birth_date' => 'nullable|date',
+      'total_visits' => 'nullable|integer|min:0',
+      'lifetime_spending' => 'nullable|numeric|min:0',
+    ]);
+
+    try {
+      DB::beginTransaction();
+
+      // Update user
+      $userData = [
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+      ];
+      if (!empty($validated['password'])) {
+        $userData['password'] = Hash::make($validated['password']);
+      }
+      $customer->user->update($userData);
+
+      // Update profile
+      $customer->profile->update([
+        'phone' => $validated['phone'] ?? null,
+        'address' => $validated['address'] ?? null,
+        'birth_date' => $validated['birth_date'] ?? null,
+      ]);
+
+      // Update customer data
+      $customer->update([
+        'total_visits' => $validated['total_visits'] ?? $customer->total_visits,
+        'lifetime_spending' => $validated['lifetime_spending'] ?? $customer->lifetime_spending,
+      ]);
+
+      DB::commit();
+
+      return redirect()->route('admin.customers.index')
+        ->with('success', 'Customer berhasil diupdate');
+    } catch (\Exception $e) {
+      DB::rollBack();
+      return back()->withErrors(['error' => 'Gagal mengupdate customer: ' . $e->getMessage()]);
+    }
+  }
+
+  public function destroy(CustomerUser $customer)
+  {
+    try {
+      // Delete will cascade to user and profile
+      $customer->user->delete();
+
+      return redirect()->route('admin.customers.index')
+        ->with('success', 'Customer berhasil dihapus');
+    } catch (\Exception $e) {
+      return back()->withErrors(['error' => 'Gagal menghapus customer: ' . $e->getMessage()]);
+    }
+  }
+}
