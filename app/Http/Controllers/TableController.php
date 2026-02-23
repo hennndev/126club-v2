@@ -134,6 +134,48 @@ class TableController extends Controller
     }
   }
 
+  // HALAMAN ACTIVE TABLES
+  public function activeTables(Request $request)
+  {
+    $query = \App\Models\TableSession::with(['table.area', 'customer.profile', 'reservation', 'billing'])
+      ->where('status', 'active');
+
+    if ($request->has('area_id') && $request->area_id != '') {
+      $query->whereHas('table', function ($q) use ($request) {
+        $q->where('area_id', $request->area_id);
+      });
+    }
+
+    if ($request->has('search') && $request->search != '') {
+      $search = $request->search;
+      $query->where(function ($q) use ($search) {
+        $q->where('session_code', 'like', "%{$search}%")
+          ->orWhereHas('table', function ($tableQuery) use ($search) {
+            $tableQuery->where('table_number', 'like', "%{$search}%");
+          })
+          ->orWhereHas('customer', function ($customerQuery) use ($search) {
+            $customerQuery->where('name', 'like', "%{$search}%");
+          });
+      });
+    }
+
+    $sessions = $query->orderBy('checked_in_at', 'desc')->get();
+
+    $areas = Area::where('is_active', true)->orderBy('sort_order')->get();
+
+    $totalActiveSessions = \App\Models\TableSession::where('status', 'active')->count();
+    $totalRevenue = \App\Models\Billing::whereHas('tableSession', function ($q) {
+      $q->where('status', 'active');
+    })->sum('grand_total');
+
+    return view('active-tables.index', compact(
+      'sessions',
+      'areas',
+      'totalActiveSessions',
+      'totalRevenue'
+    ));
+  }
+
   // HALAMAN TABLE SCANNER
   public function scanner()
   {
@@ -190,40 +232,20 @@ class TableController extends Controller
       $reservation = \App\Models\TableReservation::with(['table', 'customer'])
         ->findOrFail($validated['reservation_id']);
 
-      // Check if session already exists
-      $session = \App\Models\TableSession::where('table_reservation_id', $reservation->id)
-        ->where('status', 'pending')
-        ->first();
-
-      if (!$session) {
-        // Create new session
-        $session = \App\Models\TableSession::create([
-          'table_reservation_id' => $reservation->id,
-          'table_id' => $reservation->table_id,
-          'customer_id' => $reservation->customer_id,
-          'session_code' => 'SES-' . strtoupper(Str::random(10)),
+      // Generate or regenerate QR code if expired
+      if (!$reservation->check_in_qr_code || !$reservation->check_in_qr_expires_at || $reservation->check_in_qr_expires_at < now()) {
+        $reservation->update([
           'check_in_qr_code' => 'CHECKIN-' . strtoupper(Str::random(16)),
-          // 'checked_in_at' => Carbon
           'check_in_qr_expires_at' => now()->addMinutes(5), // QR valid for 5 minutes
-          'status' => 'pending',
         ]);
-      } else {
-        // Regenerate QR if expired
-        if (!$session->isQRValid()) {
-          $session->update([
-            'check_in_qr_code' => 'CHECKIN-' . strtoupper(Str::random(16)),
-            'check_in_qr_expires_at' => now()->addMinutes(5),
-          ]);
-        }
       }
 
       return response()->json([
         'success' => true,
         'data' => [
-          'session' => $session,
           'reservation' => $reservation,
-          'qr_code' => $session->check_in_qr_code,
-          'expires_at' => $session->check_in_qr_expires_at->format('Y-m-d H:i:s'),
+          'qr_code' => $reservation->check_in_qr_code,
+          'expires_at' => $reservation->check_in_qr_expires_at->format('Y-m-d H:i:s'),
         ]
       ]);
     } catch (\Exception $e) {
@@ -240,75 +262,86 @@ class TableController extends Controller
       'qr_code' => 'required|string',
     ]);
 
+    DB::beginTransaction();
     try {
-      $session = \App\Models\TableSession::with(['reservation', 'table', 'customer'])
+      // Find reservation by QR code
+      $reservation = \App\Models\TableReservation::with(['table', 'customer'])
         ->where('check_in_qr_code', $validated['qr_code'])
         ->first();
 
-      if (!$session) {
+      if (!$reservation) {
         return response()->json([
           'success' => false,
           'message' => 'QR Code tidak valid'
         ], 404);
       }
 
-      if (!$session->isQRValid()) {
+      // Check if QR expired
+      if (!$reservation->check_in_qr_expires_at || $reservation->check_in_qr_expires_at < now()) {
         return response()->json([
           'success' => false,
           'message' => 'QR Code sudah expired. Silakan generate ulang.'
         ], 400);
       }
 
-      if ($session->status === 'active') {
+      // Check if already checked in
+      if ($reservation->status === 'checked_in') {
         return response()->json([
           'success' => false,
           'message' => 'Customer sudah check-in'
         ], 400);
       }
 
-      // Process check-in
-      $session->update([
+      // Step 1: Create table session first (without billing_id)
+      $session = \App\Models\TableSession::create([
+        'table_reservation_id' => $reservation->id,
+        'table_id' => $reservation->table_id,
+        'customer_id' => $reservation->customer_id,
+        'session_code' => 'SES-' . strtoupper(Str::random(10)),
         'checked_in_at' => now(),
         'status' => 'active',
-        'check_in_qr_code' => null, // Clear QR after use
-        'check_in_qr_expires_at' => null,
       ]);
 
-      // Create billing for this session
-      $minimumCharge = $session->table->minimum_charge ?? 0;
+      // Step 2: Create billing for this session
+      $minimumCharge = $reservation->table->minimum_charge ?? 0;
       $billing = Billing::create([
         'table_session_id' => $session->id,
         'minimum_charge' => $minimumCharge,
         'orders_total' => 0,
-        'subtotal' => $minimumCharge,
-        'tax' => $minimumCharge * 0.10, // 10% tax
+        'subtotal' => 0,
+        'tax' => 0,
         'tax_percentage' => 10.00,
         'discount_amount' => 0,
-        'grand_total' => $minimumCharge + ($minimumCharge * 0.10),
+        'grand_total' => 0,
         'paid_amount' => 0,
         'billing_status' => 'draft',
       ]);
 
-      // Assign billing_id to table_session
+      // Step 3: Update session with billing_id
       $session->update([
         'billing_id' => $billing->id,
       ]);
 
-      // Update reservation status to checked_in
-      $session->reservation->update([
-        'status' => 'checked_in'
+      // Update reservation status and clear QR code
+      $reservation->update([
+        'status' => 'checked_in',
+        'check_in_qr_code' => null,
+        'check_in_qr_expires_at' => null,
       ]);
+
+      DB::commit();
 
       return response()->json([
         'success' => true,
         'message' => 'Check-in berhasil!',
         'data' => [
           'session' => $session,
-          'customer' => $session->customer->name,
-          'table' => $session->table->table_number,
+          'customer' => $reservation->customer->name,
+          'table' => $reservation->table->table_number,
         ]
       ]);
     } catch (\Exception $e) {
+      DB::rollBack();
       return response()->json([
         'success' => false,
         'message' => 'Terjadi kesalahan: ' . $e->getMessage()

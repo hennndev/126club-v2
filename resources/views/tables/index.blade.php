@@ -268,10 +268,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="text-sm font-semibold text-gray-900">
-                    Rp {{ number_format($table->minimum_charge ?? 0, 0, ',', '.') }}jt
-                  </div>
-                  <div class="text-xs text-gray-500">
-                    {{ number_format($table->minimum_charge * 1000000, 0, ',', '.') }}
+                    Rp {{ number_format($table->minimum_charge ?? 0, 0, ',', '.') }}
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">

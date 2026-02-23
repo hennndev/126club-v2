@@ -49,6 +49,16 @@ class TableSession extends Model
         return $this->belongsTo(Billing::class);
     }
 
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function orderItems()
+    {
+        return $this->hasManyThrough(OrderItem::class, Order::class);
+    }
+
     public function isQRValid()
     {
         return $this->check_in_qr_code 

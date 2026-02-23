@@ -20,6 +20,11 @@ class InventoryItem extends Model
         return $this->belongsTo(InventoryCategory::class);
     }
 
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
     public function isLowStock()
     {
         return $this->stock_quantity <= $this->threshold;

@@ -257,13 +257,11 @@
             </div>
 
             <!-- Payment Method -->
-            <div>
+            <div style="display: none;">
               <label class="block text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</label>
-              <input type="text"
+              <input type="hidden"
                      name="payment_method"
-                     value="Transfer Manual"
-                     readonly
-                     class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                     value="cash">
             </div>
 
             <!-- Order Summary -->

@@ -14,10 +14,13 @@ class TableReservation extends Model
         'reservation_time',
         'status',
         'note',
+        'check_in_qr_code',
+        'check_in_qr_expires_at',
     ];
 
     protected $casts = [
         'reservation_date' => 'date',
+        'check_in_qr_expires_at' => 'datetime',
     ];
 
     public function table()
