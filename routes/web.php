@@ -1,118 +1,121 @@
 <?php
 
 use App\Http\Controllers\AccurateController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AreaController;
+use App\Http\Controllers\BarController;
+use App\Http\Controllers\BomController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\KitchenController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\BomController;
-use App\Http\Controllers\KitchenController;
-use App\Http\Controllers\BarController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
 Route::get('/', function () {
-  return redirect()->route('login');
+    return redirect()->route('login');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
 
 Route::middleware('auth')->group(function () {
-  Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-  Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-  Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 Route::middleware('auth')->group(function () {
-  Route::get('/redirect-after-login', function () {
-    $user = Auth::user();
-    if($user->type === "internal") {
-      return redirect()->route('admin.dashboard');
-    }
-    return redirect('/login');
-  })->name('login.redirect');
+    Route::get('/redirect-after-login', function () {
+        $user = Auth::user();
+        if ($user->type === 'internal') {
+            return redirect()->route('admin.dashboard');
+        }
 
-  require __DIR__ . '/database.php';
+        return redirect('/login');
+    })->name('login.redirect');
 
-  Route::prefix("admin")->middleware('database_selected')->name('admin.')->group(function () {
-    Route::get('/dashboard', function () {
-      return view('dashboard');
-    })->name('dashboard');
+    require __DIR__.'/database.php';
 
-    Route::get('/', function () {
-      return redirect()->route('admin.dashboard');
+    Route::prefix('admin')->middleware('database_selected')->name('admin.')->group(function () {
+        Route::get('/dashboard', function () {
+            return view('dashboard');
+        })->name('dashboard');
+
+        Route::get('/', function () {
+            return redirect()->route('admin.dashboard');
+        });
+
+        require __DIR__.'/sync.php';
+
+        // Area Management
+        Route::resource('areas', AreaController::class)->except(['show', 'create', 'edit']);
+
+        // Role Management
+        Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit']);
+
+        // User Management
+        Route::resource('users', UserController::class)->except(['show', 'create', 'edit']);
+
+        // Table Management
+        require __DIR__.'/tables.php';
+
+        // Booking/Reservation Management
+        require __DIR__.'/bookings.php';
+
+        // Display Message Management
+        require __DIR__.'/display-messages.php';
+
+        // Song Request Management
+        require __DIR__.'/song-requests.php';
+
+        // Event Management
+        require __DIR__.'/events.php';
+
+        // Inventory Management
+        require __DIR__.'/inventories.php';
+
+        // BOM Management
+        Route::resource('bom', BomController::class)->except(['show', 'create', 'edit']);
+        Route::patch('bom/{bom}/toggle-status', [BomController::class, 'toggleStatus'])->name('bom.toggleStatus');
+
+        // Point of Sale
+        require __DIR__.'/pos.php';
+
+        // Printer
+        require __DIR__.'/printer.php';
+
+        // Kitchen Management
+        Route::get('kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
+        Route::patch('kitchen/item/{item}/toggle', [KitchenController::class, 'toggleItem'])->name('kitchen.toggle-item');
+        Route::patch('kitchen/{order}/complete-all', [KitchenController::class, 'completeAll'])->name('kitchen.complete-all');
+
+        // Bar Management
+        Route::get('bar', [BarController::class, 'index'])->name('bar.index');
+        Route::patch('bar/item/{item}/toggle', [BarController::class, 'toggleItem'])->name('bar.toggle-item');
+        Route::patch('bar/{order}/complete-all', [BarController::class, 'completeAll'])->name('bar.complete-all');
+
+        // Customer Management
+        Route::resource('customers', CustomerController::class)->except(['show', 'create', 'edit']);
     });
-
-    require __DIR__ . '/sync.php';
-
-    // Area Management
-    Route::resource('areas', AreaController::class)->except(['show', 'create', 'edit']);
-
-    // Role Management
-    Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit']);
-
-    // User Management
-    Route::resource('users', UserController::class)->except(['show', 'create', 'edit']);
-
-    // Table Management
-    require __DIR__. '/tables.php';
-
-    // Booking/Reservation Management
-    require __DIR__. '/bookings.php';
-
-    // Display Message Management
-    require __DIR__. '/display-messages.php';
-
-    // Song Request Management
-    require __DIR__. '/song-requests.php';
-
-    // Event Management
-    require __DIR__. '/events.php';
-
-    // Inventory Management
-    require __DIR__. '/inventories.php';
-
-    // BOM Management
-    Route::resource('bom', BomController::class)->except(['show', 'create', 'edit']);
-    Route::patch('bom/{bom}/toggle-status', [BomController::class, 'toggleStatus'])->name('bom.toggleStatus');
-
-    // Point of Sale
-    require __DIR__. '/pos.php';
-
-    // Kitchen Management
-    Route::get('kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
-    Route::patch('kitchen/item/{item}/toggle', [KitchenController::class, 'toggleItem'])->name('kitchen.toggle-item');
-    Route::patch('kitchen/{order}/complete-all', [KitchenController::class, 'completeAll'])->name('kitchen.complete-all');
-
-    // Bar Management
-    Route::get('bar', [BarController::class, 'index'])->name('bar.index');
-    Route::patch('bar/item/{item}/toggle', [BarController::class, 'toggleItem'])->name('bar.toggle-item');
-    Route::patch('bar/{order}/complete-all', [BarController::class, 'completeAll'])->name('bar.complete-all');
-
-    // Customer Management
-    Route::resource('customers', CustomerController::class)->except(['show', 'create', 'edit']);
-  });
 });
-
 
 Route::get('/accurate/auth', function (Request $request) {
-  $request->session()->put('state', $state = Str::random(40));
-  $clientId = env('ACCURATE_CLIENT_ID');
-  $query = http_build_query([
-    'client_id' => $clientId,
-    'response_type' => 'code',
-    'redirect_uri' => route('accurate.callback'),
-    'scope' => 'bank_transfer_view bank_transfer_save bill_of_material_view bill_of_material_save branch_view branch_save currency_view currency_save customer_save customer_view customer_category_view customer_category_save customer_claim_view customer_claim_save data_classification_view data_classification_save delivery_order_view delivery_order_save department_view department_save employee_view employee_save exchange_invoice_view exchange_invoice_save expense_accrual_view expense_accrual_save fob_view fob_save glaccount_view glaccount_save item_view item_save item_adjustment_view item_adjustment_save item_category_view item_category_save item_transfer_view item_transfer_save job_order_view job_order_save journal_voucher_view journal_voucher_save material_adjustment_view material_adjustment_save price_category_view price_category_save project_view project_save purchase_invoice_view purchase_invoice_save purchase_order_save purchase_order_view purchase_payment_view purchase_payment_save purchase_requisition_view purchase_requisition_save purchase_return_view purchase_return_save receive_item_view receive_item_save roll_over_view roll_over_save sales_invoice_view sales_invoice_save sales_order_save sales_order_view sales_quotation_view sales_quotation_save sales_receipt_view sales_receipt_save sales_return_view sales_return_save shipment_view shipment_save stock_opname_order_view stock_opname_order_save stock_opname_result_view stock_opname_result_save tax_view tax_save unit_view unit_save vendor_view vendor_save vendor_category_view vendor_category_save vendor_claim_view vendor_claim_save vendor_price_view vendor_price_save warehouse_view warehouse_save work_order_view work_order_save material_slip_view material_slip_save finished_good_slip_view finished_good_slip_save',
-    'state' => $state,
-  ]);
+    $request->session()->put('state', $state = Str::random(40));
+    $clientId = env('ACCURATE_CLIENT_ID');
+    $query = http_build_query([
+        'client_id' => $clientId,
+        'response_type' => 'code',
+        'redirect_uri' => route('accurate.callback'),
+        'scope' => 'bank_transfer_view bank_transfer_save bill_of_material_view bill_of_material_save branch_view branch_save currency_view currency_save customer_save customer_view customer_category_view customer_category_save customer_claim_view customer_claim_save data_classification_view data_classification_save delivery_order_view delivery_order_save department_view department_save employee_view employee_save exchange_invoice_view exchange_invoice_save expense_accrual_view expense_accrual_save fob_view fob_save glaccount_view glaccount_save item_view item_save item_adjustment_view item_adjustment_save item_category_view item_category_save item_transfer_view item_transfer_save job_order_view job_order_save journal_voucher_view journal_voucher_save material_adjustment_view material_adjustment_save price_category_view price_category_save project_view project_save purchase_invoice_view purchase_invoice_save purchase_order_save purchase_order_view purchase_payment_view purchase_payment_save purchase_requisition_view purchase_requisition_save purchase_return_view purchase_return_save receive_item_view receive_item_save roll_over_view roll_over_save sales_invoice_view sales_invoice_save sales_order_save sales_order_view sales_quotation_view sales_quotation_save sales_receipt_view sales_receipt_save sales_return_view sales_return_save shipment_view shipment_save stock_opname_order_view stock_opname_order_save stock_opname_result_view stock_opname_result_save tax_view tax_save unit_view unit_save vendor_view vendor_save vendor_category_view vendor_category_save vendor_claim_view vendor_claim_save vendor_price_view vendor_price_save warehouse_view warehouse_save work_order_view work_order_save material_slip_view material_slip_save finished_good_slip_view finished_good_slip_save',
+        'state' => $state,
+    ]);
 
-  return redirect(env('ACCURATE_API_URL') . '/oauth/authorize?' . $query);
+    return redirect(env('ACCURATE_API_URL').'/oauth/authorize?'.$query);
 })->name('accurate.auth');
 
 Route::get('/accurate/callback', [
-  AccurateController::class,
-  'handleCallback',
+    AccurateController::class,
+    'handleCallback',
 ])->name('accurate.callback');
