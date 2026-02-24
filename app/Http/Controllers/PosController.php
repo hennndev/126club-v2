@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\BarOrder;
 use App\Models\BarOrderItem;
 use App\Models\BomRecipe;
@@ -94,10 +95,56 @@ class PosController extends Controller
             ->whereNull('checked_out_at')
             ->get();
 
-        return view('pos.index', compact('products', 'cartItems', 'cartTotal', 'tableSessions'));
+        // Get printer locations for counter selection
+        $printerLocations = $this->getPrinterLocations();
+
+        // Get current counter location from session
+        $currentCounter = session()->get('pos_counter_location');
+
+        return view('pos.index', compact('products', 'cartItems', 'cartTotal', 'tableSessions', 'printerLocations', 'currentCounter'));
     }
 
-    public function addToCart(Request $request, $productId)
+    /**
+     * Get valid printer locations (service + area locations).
+     */
+    protected function getPrinterLocations(): array
+    {
+        $serviceLocations = [
+            'kitchen' => 'Kitchen',
+            'bar' => 'Bar',
+            'cashier' => 'Cashier',
+        ];
+
+        $areaLocations = Area::where('is_active', true)
+            ->orderBy('sort_order')
+            ->pluck('name', 'code')
+            ->toArray();
+
+        return [
+            'Service' => $serviceLocations,
+            'Areas' => $areaLocations,
+        ];
+    }
+
+    /**
+     * Select counter location for current session.
+     */
+    public function selectCounter(Request $request): JsonResponse
+    {
+        $request->validate([
+            'counter_location' => 'required|string',
+        ]);
+
+        session()->put('pos_counter_location', $request->counter_location);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Counter location set successfully.',
+            'counter_location' => $request->counter_location,
+        ]);
+    }
+
+    public function addToCart(Request $request, $productId): JsonResponse
     {
         // Check if it's a BOM or inventory item
         if (str_starts_with($productId, 'bom_')) {
@@ -106,7 +153,10 @@ class PosController extends Controller
             $bom = BomRecipe::with('inventoryItem')->find($bomId);
 
             if (! $bom || ! $bom->inventoryItem || ! in_array($bom->inventoryItem->category_type, ['food', 'bar'])) {
-                return back()->with('error', 'Product not found');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found',
+                ], 404);
             }
 
             $product = [
@@ -123,7 +173,10 @@ class PosController extends Controller
                 ->first();
 
             if (! $inventoryItem) {
-                return back()->with('error', 'Product not found');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found',
+                ], 404);
             }
 
             $product = [
@@ -149,10 +202,10 @@ class PosController extends Controller
 
         session()->put('pos_cart', $cart);
 
-        return back();
+        return $this->cartResponse('Product added to cart', $cart);
     }
 
-    public function updateCartQuantity(Request $request, $productId)
+    public function updateCartQuantity(Request $request, $productId): JsonResponse
     {
         $cart = session()->get('pos_cart', []);
         $action = $request->input('action');
@@ -170,10 +223,10 @@ class PosController extends Controller
 
         session()->put('pos_cart', $cart);
 
-        return back();
+        return $this->cartResponse('Cart updated', $cart);
     }
 
-    public function removeFromCart($productId)
+    public function removeFromCart($productId): JsonResponse
     {
         $cart = session()->get('pos_cart', []);
 
@@ -183,17 +236,17 @@ class PosController extends Controller
 
         session()->put('pos_cart', $cart);
 
-        return back();
+        return $this->cartResponse('Item removed from cart', $cart);
     }
 
-    public function clearCart()
+    public function clearCart(): JsonResponse
     {
         session()->forget('pos_cart');
 
-        return back();
+        return $this->cartResponse('Cart cleared', []);
     }
 
-    public function checkout(Request $request)
+    public function checkout(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'customer_type' => 'required|in:booking,walk-in',
@@ -204,7 +257,10 @@ class PosController extends Controller
         $cart = session()->get('pos_cart', []);
 
         if (empty($cart)) {
-            return back()->with('error', 'Keranjang kosong!');
+            return response()->json([
+                'success' => false,
+                'message' => 'Keranjang kosong!',
+            ], 400);
         }
 
         DB::beginTransaction();
@@ -218,7 +274,10 @@ class PosController extends Controller
                     ->first();
 
                 if (! $tableSession) {
-                    return back()->with('error', 'Table session tidak ditemukan atau tidak aktif!');
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Table session tidak ditemukan atau tidak aktif!',
+                    ], 404);
                 }
 
                 // Generate order number
@@ -322,17 +381,29 @@ class PosController extends Controller
                     $this->printOrderReceipt($order);
                 }
 
-                return redirect()->route('admin.pos.index')
-                    ->with('success', "Order #{$orderNumber} berhasil dibuat! Total: Rp ".number_format($itemsTotal, 0, ',', '.'));
+                return response()->json([
+                    'success' => true,
+                    'message' => "Order #{$orderNumber} berhasil dibuat!",
+                    'order_number' => $orderNumber,
+                    'order_id' => $order->id,
+                    'total' => $itemsTotal,
+                    'formatted_total' => 'Rp '.number_format($itemsTotal, 0, ',', '.'),
+                ]);
             }
 
             // Walk-in implementation (belakangan)
-            return back()->with('error', 'Walk-in belum diimplementasikan');
+            return response()->json([
+                'success' => false,
+                'message' => 'Walk-in belum diimplementasikan',
+            ], 400);
 
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return back()->with('error', 'Terjadi kesalahan: '.$e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: '.$e->getMessage(),
+            ], 500);
         }
     }
 
@@ -529,12 +600,7 @@ class PosController extends Controller
     protected function printKitchenTicket(KitchenOrder $kitchenOrder): bool
     {
         try {
-            $printer = Printer::getByLocation('kitchen');
-
-            if (! $printer) {
-                // Fallback to default printer
-                $printer = Printer::getDefault();
-            }
+            $printer = $this->getPrinterForLocation('kitchen');
 
             if (! $printer) {
                 return false;
@@ -555,12 +621,7 @@ class PosController extends Controller
     protected function printBarTicket(BarOrder $barOrder): bool
     {
         try {
-            $printer = Printer::getByLocation('bar');
-
-            if (! $printer) {
-                // Fallback to default printer
-                $printer = Printer::getDefault();
-            }
+            $printer = $this->getPrinterForLocation('bar');
 
             if (! $printer) {
                 return false;
@@ -573,5 +634,57 @@ class PosController extends Controller
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    /**
+     * Get printer for a service location, considering counter location from session.
+     * Priority: counter location > service location > default.
+     */
+    protected function getPrinterForLocation(string $serviceLocation): ?Printer
+    {
+        $counterLocation = session()->get('pos_counter_location');
+
+        // 1. Try counter location first (area-specific printer)
+        if ($counterLocation) {
+            $printer = Printer::getByLocation($counterLocation);
+            if ($printer) {
+                return $printer;
+            }
+        }
+
+        // 2. Fallback to service location printer (kitchen/bar)
+        $printer = Printer::getByLocation($serviceLocation);
+        if ($printer) {
+            return $printer;
+        }
+
+        // 3. Final fallback to default printer
+        return Printer::getDefault();
+    }
+
+    /**
+     * Build a standardized cart response for AJAX requests.
+     */
+    protected function cartResponse(string $message, array $cart): JsonResponse
+    {
+        $cartItems = collect($cart)->values()->map(function ($item) {
+            return [
+                'id' => $item['id'],
+                'name' => $item['name'],
+                'price' => (float) $item['price'],
+                'quantity' => (int) $item['quantity'],
+                'subtotal' => (float) $item['price'] * (int) $item['quantity'],
+            ];
+        });
+
+        $cartTotal = $cartItems->sum('subtotal');
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'cart' => $cartItems,
+            'cartTotal' => $cartTotal,
+            'itemCount' => $cartItems->count(),
+        ]);
     }
 }

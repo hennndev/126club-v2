@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -16,20 +15,21 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-          RolePermissionsSeeder::class,
-          UsersSeeder::class,
-          // AreaSeeder::class,
-          // TabelSeeder::class,
-          // CustomerSeeder::class,
-          // TableReservationSeeder::class,
-          // DisplayMessageSeeder::class,
-          // SongRequestSeeder::class,
-          // EventSeeder::class,
-          // InventoryCategorySeeder::class,
-          // InventoryItemSeeder::class,
-          // BomSeeder::class,
-          // KitchenOrderSeeder::class,
-          // BarOrderSeeder::class,
+            RolePermissionsSeeder::class,
+            UsersSeeder::class,
+            AreaSeeder::class,
+            TabelSeeder::class,
+            CustomerSeeder::class,
+            InventoryCategorySeeder::class,
+            InventoryItemSeeder::class,
+            BomSeeder::class,
+            // TableReservationSeeder::class,
+            // DisplayMessageSeeder::class,
+            // SongRequestSeeder::class,
+            // EventSeeder::class,
+            // KitchenOrderSeeder::class,
+            // BarOrderSeeder::class,
+            PosTestSeeder::class, // Run after all other seeders
         ]);
     }
 }

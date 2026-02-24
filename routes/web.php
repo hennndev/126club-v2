@@ -88,11 +88,13 @@ Route::middleware('auth')->group(function () {
 
         // Kitchen Management
         Route::get('kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
+        Route::get('kitchen/fetch', [KitchenController::class, 'fetchOrders'])->name('kitchen.fetch');
         Route::patch('kitchen/item/{item}/toggle', [KitchenController::class, 'toggleItem'])->name('kitchen.toggle-item');
         Route::patch('kitchen/{order}/complete-all', [KitchenController::class, 'completeAll'])->name('kitchen.complete-all');
 
         // Bar Management
         Route::get('bar', [BarController::class, 'index'])->name('bar.index');
+        Route::get('bar/fetch', [BarController::class, 'fetchOrders'])->name('bar.fetch');
         Route::patch('bar/item/{item}/toggle', [BarController::class, 'toggleItem'])->name('bar.toggle-item');
         Route::patch('bar/{order}/complete-all', [BarController::class, 'completeAll'])->name('bar.complete-all');
 

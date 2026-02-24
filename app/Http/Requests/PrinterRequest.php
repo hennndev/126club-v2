@@ -13,9 +13,13 @@ class PrinterRequest extends FormRequest
 
     public function rules(): array
     {
+        $serviceLocations = ['kitchen', 'bar', 'cashier'];
+        $areaCodes = \App\Models\Area::where('is_active', true)->pluck('code')->toArray();
+        $validLocations = array_merge($serviceLocations, $areaCodes);
+
         return [
             'name' => ['required', 'string', 'max:255'],
-            'location' => ['nullable', 'string', 'max:255'],
+            'location' => ['nullable', 'string', 'in:'.implode(',', $validLocations)],
             'connection_type' => ['required', 'in:network,file,windows'],
             'ip' => ['required_if:connection_type,network', 'nullable', 'ip'],
             'port' => ['required_if:connection_type,network', 'nullable', 'integer', 'min:1', 'max:65535'],
@@ -35,6 +39,7 @@ class PrinterRequest extends FormRequest
     {
         return [
             'name.required' => 'Printer name is required.',
+            'location.in' => 'Please select a valid location from the list.',
             'connection_type.required' => 'Connection type is required.',
             'ip.required_if' => 'IP address is required for network connection.',
             'path.required_if' => 'Path is required for file/windows connection.',

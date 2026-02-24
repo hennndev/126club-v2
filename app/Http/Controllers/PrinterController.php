@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PrinterRequest;
+use App\Models\Area;
 use App\Models\Order;
 use App\Models\Printer;
 use App\Services\PrinterService;
@@ -26,7 +27,29 @@ class PrinterController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('printers.index', compact('printers'));
+        $areas = Area::where('is_active', true)->orderBy('sort_order')->get();
+        $printerLocations = $this->getPrinterLocations($areas);
+
+        return view('printers.index', compact('printers', 'printerLocations'));
+    }
+
+    /**
+     * Get valid printer locations (service + area locations).
+     */
+    protected function getPrinterLocations($areas): array
+    {
+        $serviceLocations = [
+            'kitchen' => 'Kitchen',
+            'bar' => 'Bar',
+            'cashier' => 'Cashier',
+        ];
+
+        $areaLocations = $areas->pluck('name', 'code')->toArray();
+
+        return [
+            'Service' => $serviceLocations,
+            'Areas' => $areaLocations,
+        ];
     }
 
     /**
