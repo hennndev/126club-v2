@@ -2,11 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\BomRecipe;
 use App\Models\BomRecipeItem;
 use App\Models\InventoryItem;
+use Illuminate\Database\Seeder;
 
 class BomSeeder extends Seeder
 {
@@ -21,7 +20,7 @@ class BomSeeder extends Seeder
         $salt = InventoryItem::where('name', 'Salt')->first();
         $cheddar = InventoryItem::where('name', 'Cheddar Cheese')->first();
         $butter = InventoryItem::where('name', 'Butter')->first();
-        
+
         $vodka = InventoryItem::where('name', 'Grey Goose Vodka')->first();
         $gin = InventoryItem::where('name', 'Bombay Sapphire Gin')->first();
         $rum = InventoryItem::where('name', 'Bacardi Rum')->first();
@@ -31,10 +30,68 @@ class BomSeeder extends Seeder
         $limeJuice = InventoryItem::where('name', 'Lime Juice')->first();
         $simpleSyrup = InventoryItem::where('name', 'Simple Syrup')->first();
 
+        // Create inventory items for BOM products first
+        $caesarSalad = InventoryItem::create([
+            'code' => 'CS001',
+            'accurate_id' => 6001,
+            'name' => 'Caesar Salad',
+            'category_type' => 'food',
+            'price' => 125000,
+            'stock_quantity' => 10,
+            'threshold' => 5,
+            'unit' => 'portion',
+        ]);
+
+        $grilledCheese = InventoryItem::create([
+            'code' => 'GC001',
+            'accurate_id' => 6002,
+            'name' => 'Grilled Cheese Sandwich',
+            'category_type' => 'food',
+            'price' => 85000,
+            'stock_quantity' => 15,
+            'threshold' => 5,
+            'unit' => 'portion',
+        ]);
+
+        $cosmopolitan = InventoryItem::create([
+            'code' => 'COS001',
+            'accurate_id' => 6003,
+            'name' => 'Cosmopolitan',
+            'category_type' => 'bar',
+            'price' => 150000,
+            'stock_quantity' => 20,
+            'threshold' => 10,
+            'unit' => 'glass',
+        ]);
+
+        $ginTonic = InventoryItem::create([
+            'code' => 'GT001',
+            'accurate_id' => 6004,
+            'name' => 'Gin & Tonic',
+            'category_type' => 'bar',
+            'price' => 120000,
+            'stock_quantity' => 25,
+            'threshold' => 10,
+            'unit' => 'glass',
+        ]);
+
+        $mojito = InventoryItem::create([
+            'code' => 'MOJ001',
+            'accurate_id' => 6005,
+            'name' => 'Mojito',
+            'category_type' => 'bar',
+            'price' => 130000,
+            'stock_quantity' => 20,
+            'threshold' => 10,
+            'unit' => 'glass',
+        ]);
+
         // Food Recipes
         if ($oliveOil && $blackPepper && $salt && $cheddar) {
             $recipe1 = BomRecipe::create([
-                'name' => 'Caesar Salad',
+                'accurate_id' => 7001,
+                'inventory_item_id' => $caesarSalad->id,
+                'quantity' => 1,
                 'type' => 'food',
                 'description' => 'Classic Caesar salad with cheese and dressing',
                 'selling_price' => 125000,
@@ -91,7 +148,9 @@ class BomSeeder extends Seeder
 
         if ($butter && $cheddar && $salt && $blackPepper) {
             $recipe2 = BomRecipe::create([
-                'name' => 'Grilled Cheese Sandwich',
+                'accurate_id' => 7002,
+                'inventory_item_id' => $grilledCheese->id,
+                'quantity' => 1,
                 'type' => 'food',
                 'description' => 'Classic grilled cheese sandwich',
                 'selling_price' => 85000,
@@ -127,7 +186,9 @@ class BomSeeder extends Seeder
         // Beverage Recipes
         if ($vodka && $cranberryJuice && $limeJuice) {
             $recipe3 = BomRecipe::create([
-                'name' => 'Cosmopolitan',
+                'accurate_id' => 7003,
+                'inventory_item_id' => $cosmopolitan->id,
+                'quantity' => 1,
                 'type' => 'beverage',
                 'description' => 'Classic vodka cocktail with cranberry',
                 'selling_price' => 150000,
@@ -173,7 +234,9 @@ class BomSeeder extends Seeder
 
         if ($gin && $tonicWater && $limeJuice) {
             $recipe4 = BomRecipe::create([
-                'name' => 'Gin & Tonic',
+                'accurate_id' => 7004,
+                'inventory_item_id' => $ginTonic->id,
+                'quantity' => 1,
                 'type' => 'beverage',
                 'description' => 'Classic gin and tonic with lime',
                 'selling_price' => 120000,
@@ -219,7 +282,9 @@ class BomSeeder extends Seeder
 
         if ($rum && $limeJuice && $simpleSyrup) {
             $recipe5 = BomRecipe::create([
-                'name' => 'Mojito',
+                'accurate_id' => 7005,
+                'inventory_item_id' => $mojito->id,
+                'quantity' => 1,
                 'type' => 'beverage',
                 'description' => 'Refreshing rum cocktail with lime and mint',
                 'selling_price' => 130000,

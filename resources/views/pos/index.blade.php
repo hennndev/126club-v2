@@ -1,8 +1,9 @@
 <x-app-layout>
-  <div class="flex w-full h-[calc(100vh-6rem)]">
-    <div class="flex-1 flex flex-col"
-         id="posContainer">
+  <div class="flex w-full h-[calc(100vh-6rem)]"
+       x-data="posApp()"
+       x-init="init()">
 
+    <div class="flex-1 flex flex-col">
       <div class="flex-1 flex gap-6 p-6 overflow-hidden">
         <!-- Products Section -->
         <div class="flex-1 flex flex-col overflow-hidden">
@@ -30,6 +31,27 @@
             <select class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[120px]">
               <option value="all">🥃 All</option>
             </select>
+
+            <!-- Counter Location Selector -->
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-gray-600">Counter:</span>
+              <select id="counterLocationSelect"
+                      class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[160px]"
+                      x-model="counterLocation"
+                      @change="selectCounter($event)">
+                <option value="">-- Pilih Counter --</option>
+                @foreach ($printerLocations as $group => $locations)
+                  <optgroup label="{{ $group }}">
+                    @foreach ($locations as $value => $label)
+                      <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                  </optgroup>
+                @endforeach
+              </select>
+              <span x-show="counterLocation"
+                    x-text="getCounterLabel()"
+                    class="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full"></span>
+            </div>
           </div>
 
           <!-- Products Grid -->
@@ -50,7 +72,7 @@
                     </svg>
                   </button>
 
-                  <!-- Stock Badge (Only for Inventory Items with Drink category) -->
+                  <!-- Stock Badge -->
                   @if (isset($product['type']) && $product['type'] === 'item' && strtolower($product['category']) === 'drink')
                     <div class="absolute top-3 left-3 z-10">
                       @if ($product['stock'] > 10)
@@ -75,23 +97,36 @@
 
                     <div class="flex items-center justify-between">
                       <div class="font-bold text-gray-900 text-sm">Rp {{ number_format($product['price'], 0, ',', '.') }}</div>
-                      <form action="{{ route('admin.pos.add-to-cart', $product['id']) }}"
-                            method="POST">
-                        @csrf
-                        <button type="submit"
-                                class="w-8 h-8 bg-gray-800 hover:bg-gray-900 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                {{ isset($product['type']) && $product['type'] === 'item' && $product['stock'] <= 0 ? 'disabled' : '' }}>
-                          <svg class="w-4 h-4"
-                               fill="none"
-                               stroke="currentColor"
-                               viewBox="0 0 24 24">
-                            <path stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  stroke-width="2"
-                                  d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
-                      </form>
+                      <button type="button"
+                              @click="addToCart('{{ $product['id'] }}')"
+                              :disabled="isProcessing || {{ isset($product['type']) && $product['type'] === 'item' && $product['stock'] <= 0 ? 'true' : 'false' }}"
+                              :class="{ 'opacity-50 cursor-not-allowed': isProcessing }"
+                              class="w-8 h-8 bg-gray-800 hover:bg-gray-900 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg x-show="!isProcessing"
+                             class="w-4 h-4"
+                             fill="none"
+                             stroke="currentColor"
+                             viewBox="0 0 24 24">
+                          <path stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M12 4v16m8-8H4" />
+                        </svg>
+                        <svg x-show="isProcessing"
+                             class="w-4 h-4 animate-spin"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                          <circle class="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  stroke-width="4"></circle>
+                          <path class="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -116,11 +151,18 @@
       </div>
 
       <!-- Customer Type Selection Modal -->
-      <div id="customerTypeModal"
+      <div x-show="showCustomerTypeModal"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0"
+           x-transition:enter-end="opacity-100"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0"
            style="display: none;"
-           class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+           class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+           @click.self="showCustomerTypeModal = false">
         <div class="bg-white rounded-2xl p-6 max-w-lg w-full mx-4"
-             onclick="event.stopPropagation()">
+             @click.stop>
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-3">
               <div class="bg-blue-600 rounded-lg p-2">
@@ -136,7 +178,7 @@
               </div>
               <h3 class="text-xl font-bold text-gray-900">Pilih Pelanggan</h3>
             </div>
-            <button onclick="closeCustomerTypeModal()"
+            <button @click="showCustomerTypeModal = false"
                     class="text-gray-400 hover:text-gray-600">
               <svg class="w-6 h-6"
                    fill="none"
@@ -154,7 +196,7 @@
 
           <div class="grid grid-cols-2 gap-4">
             <!-- Booking Option -->
-            <button onclick="selectCustomerType('booking')"
+            <button @click="selectCustomerType('booking')"
                     class="p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition group">
               <div class="bg-blue-600 rounded-lg p-3 w-fit mx-auto mb-4 group-hover:scale-110 transition">
                 <svg class="w-8 h-8 text-white"
@@ -170,12 +212,12 @@
               <h4 class="font-bold text-gray-900 mb-2">Booking</h4>
               <p class="text-xs text-gray-600 mb-3">Pelanggan dengan reservasi</p>
               <div class="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full inline-block">
-                3 Booking Aktif
+                {{ $tableSessions->count() }} Booking Aktif
               </div>
             </button>
 
             <!-- Walk-in Option -->
-            <button onclick="selectCustomerType('walk-in')"
+            <button @click="selectCustomerType('walk-in')"
                     class="p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition group">
               <div class="bg-blue-600 rounded-lg p-3 w-fit mx-auto mb-4 group-hover:scale-110 transition">
                 <svg class="w-8 h-8 text-white"
@@ -191,7 +233,7 @@
               <h4 class="font-bold text-gray-900 mb-2">Walk-in</h4>
               <p class="text-xs text-gray-600 mb-3">Pelanggan tanpa reservasi</p>
               <div class="bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full inline-block">
-                12 Pelanggan Terdaftar
+                Coming Soon
               </div>
             </button>
           </div>
@@ -199,14 +241,21 @@
       </div>
 
       <!-- Checkout Modal -->
-      <div id="checkoutModal"
+      <div x-show="showCheckoutModal"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0"
+           x-transition:enter-end="opacity-100"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0"
            style="display: none;"
-           class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+           class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+           @click.self="showCheckoutModal = false">
         <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4"
-             onclick="event.stopPropagation()">
+             @click.stop>
           <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-900">Checkout Order</h3>
-            <button onclick="closeCheckoutModal()"
+            <button @click="showCheckoutModal = false"
                     class="text-gray-400 hover:text-gray-600">
               <svg class="w-6 h-6"
                    fill="none"
@@ -220,26 +269,30 @@
             </button>
           </div>
 
-          <form action="{{ route('admin.pos.checkout') }}"
-                method="POST"
+          <form @submit.prevent="submitCheckout"
                 class="space-y-4">
-            @csrf
-
             <!-- Customer Type (Hidden) -->
             <input type="hidden"
                    name="customer_type"
-                   id="customerTypeInput"
-                   value="">
+                   x-model="checkoutForm.customer_type">
 
             <!-- Customer Selection -->
-            <div id="customerSelectionDiv">
+            <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Customer</label>
               <select name="customer_user_id"
-                      id="customerSelect"
+                      x-model="checkoutForm.customer_user_id"
+                      @change="handleCustomerChange()"
                       required
-                      onchange="handleCustomerChange()"
                       class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="">Pilih Customer</option>
+                @foreach ($tableSessions as $session)
+                  <option value="{{ $session->customer_id }}"
+                          data-table-id="{{ $session->table_id }}"
+                          data-table-number="{{ $session->table->table_number ?? $session->table->number ?? '' }}"
+                          data-area-name="{{ $session->table->area->name ?? '' }}">
+                    {{ $session->customer->name ?? 'Unknown' }} - {{ $session->table->area->name ?? 'N/A' }} - Meja {{ $session->table->table_number ?? $session->table->number ?? 'N/A' }}
+                  </option>
+                @endforeach
               </select>
             </div>
 
@@ -247,48 +300,91 @@
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Meja</label>
               <input type="text"
-                     id="tableDisplay"
+                     x-model="checkoutForm.table_display"
                      readonly
                      class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                      placeholder="Pilih customer terlebih dahulu">
               <input type="hidden"
                      name="table_id"
-                     id="tableIdInput">
-            </div>
-
-            <!-- Payment Method -->
-            <div style="display: none;">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</label>
-              <input type="hidden"
-                     name="payment_method"
-                     value="cash">
+                     x-model="checkoutForm.table_id">
             </div>
 
             <!-- Order Summary -->
             <div class="bg-gray-50 rounded-lg p-4 space-y-2">
               <div class="flex justify-between text-sm text-gray-600">
-                <span>Subtotal ({{ $cartItems->count() }} items)</span>
-                <span>Rp {{ number_format($cartTotal, 0, ',', '.') }}</span>
+                <span>Subtotal (<span x-text="cart.length"></span> items)</span>
+                <span x-text="formatCurrency(cartTotal)"></span>
               </div>
               <div class="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
                 <span>Total</span>
-                <span>Rp {{ number_format($cartTotal, 0, ',', '.') }}</span>
+                <span x-text="formatCurrency(cartTotal)"></span>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex gap-3 pt-4">
               <button type="button"
-                      onclick="closeCheckoutModal()"
+                      @click="showCheckoutModal = false"
                       class="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition">
                 Batal
               </button>
               <button type="submit"
-                      class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition">
-                Proses Order
+                      :disabled="isProcessing"
+                      class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                <svg x-show="isProcessing"
+                     class="w-4 h-4 animate-spin"
+                     fill="none"
+                     viewBox="0 0 24 24">
+                  <circle class="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          stroke-width="4"></circle>
+                  <path class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span x-text="isProcessing ? 'Processing...' : 'Proses Order'"></span>
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <!-- Success Toast -->
+      <div x-show="showToast"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 transform translate-y-2"
+           x-transition:enter-end="opacity-100 transform translate-y-0"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100 transform translate-y-0"
+           x-transition:leave-end="opacity-0 transform translate-y-2"
+           @click="showToast = false"
+           class="fixed bottom-4 right-4 z-[70] cursor-pointer">
+        <div :class="toastType === 'success' ? 'bg-green-500' : 'bg-red-500'"
+             class="px-6 py-3 rounded-lg shadow-lg text-white font-medium flex items-center gap-2">
+          <svg x-show="toastType === 'success'"
+               class="w-5 h-5"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7" />
+          </svg>
+          <svg x-show="toastType === 'error'"
+               class="w-5 h-5"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <span x-text="toastMessage"></span>
         </div>
       </div>
     </div>
@@ -312,226 +408,384 @@
             </div>
             <div>
               <h3 class="text-gray-900 font-bold">Keranjang</h3>
-              <p class="text-gray-500 text-sm">{{ $cartItems->count() }} item</p>
+              <p class="text-gray-500 text-sm"><span x-text="cart.length"></span> item</p>
             </div>
           </div>
-          @if ($cartItems->isNotEmpty())
-            <form action="{{ route('admin.pos.clear-cart') }}"
-                  method="POST">
-              @csrf
-              <button type="submit"
-                      class="text-gray-400 hover:text-gray-600"
-                      title="Kosongkan">
-                <svg class="w-5 h-5"
-                     fill="none"
-                     stroke="currentColor"
-                     viewBox="0 0 24 24">
-                  <path stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </form>
-          @endif
+          <button x-show="cart.length > 0"
+                  @click="clearCart()"
+                  :disabled="isProcessing"
+                  class="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                  title="Kosongkan">
+            <svg class="w-5 h-5"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
         </div>
 
         <!-- Cart Items -->
         <div class="space-y-3 max-h-[500px] mb-6 flex-1 overflow-y-auto">
-          @forelse($cartItems as $item)
+          <template x-for="item in cart"
+                    :key="item.id">
             <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:bg-gray-100 transition">
               <div class="flex items-start gap-3">
                 <div class="bg-blue-600 rounded-lg p-2 flex-shrink-0">
                   <div class="text-2xl">🍸</div>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <h4 class="text-gray-900 font-semibold text-sm truncate">{{ $item['name'] }}</h4>
-                  <p class="text-gray-500 text-xs">Rp {{ number_format($item['price'], 0, ',', '.') }}</p>
+                  <h4 class="text-gray-900 font-semibold text-sm truncate"
+                      x-text="item.name"></h4>
+                  <p class="text-gray-500 text-xs"
+                     x-text="formatCurrency(item.price)"></p>
 
                   <div class="flex items-center justify-between mt-3">
                     <div class="flex items-center gap-2">
-                      <form action="{{ route('admin.pos.update-cart', $item['id']) }}"
-                            method="POST"
-                            class="inline">
-                        @csrf
-                        <input type="hidden"
-                               name="action"
-                               value="decrease">
-                        <button type="submit"
-                                class="w-6 h-6 bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 flex items-center justify-center text-sm font-bold">-</button>
-                      </form>
-                      <span class="text-gray-900 font-medium w-8 text-center">{{ $item['quantity'] }}</span>
-                      <form action="{{ route('admin.pos.update-cart', $item['id']) }}"
-                            method="POST"
-                            class="inline">
-                        @csrf
-                        <input type="hidden"
-                               name="action"
-                               value="increase">
-                        <button type="submit"
-                                class="w-6 h-6 bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 flex items-center justify-center text-sm font-bold">+</button>
-                      </form>
+                      <button type="button"
+                              @click="updateCartQuantity(item.id, 'decrease')"
+                              :disabled="isProcessing"
+                              class="w-6 h-6 bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 flex items-center justify-center text-sm font-bold disabled:opacity-50">-</button>
+                      <span class="text-gray-900 font-medium w-8 text-center"
+                            x-text="item.quantity"></span>
+                      <button type="button"
+                              @click="updateCartQuantity(item.id, 'increase')"
+                              :disabled="isProcessing"
+                              class="w-6 h-6 bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 flex items-center justify-center text-sm font-bold disabled:opacity-50">+</button>
                     </div>
-                    <form action="{{ route('admin.pos.remove-from-cart', $item['id']) }}"
-                          method="POST"
-                          class="inline">
-                      @csrf
-                      @method('DELETE')
-                      <button type="submit"
-                              class="text-red-500 hover:text-red-700">
-                        <svg class="w-4 h-4"
-                             fill="none"
-                             stroke="currentColor"
-                             viewBox="0 0 24 24">
-                          <path stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </form>
+                    <button type="button"
+                            @click="removeFromCart(item.id)"
+                            :disabled="isProcessing"
+                            class="text-red-500 hover:text-red-700 disabled:opacity-50">
+                      <svg class="w-4 h-4"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-          @empty
-            <div class="text-center py-12">
-              <svg class="mx-auto h-12 w-12 text-gray-400"
-                   fill="none"
-                   stroke="currentColor"
-                   viewBox="0 0 24 24">
-                <path stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <p class="mt-2 text-gray-500 text-sm">Keranjang kosong</p>
-            </div>
-          @endforelse
+          </template>
+
+          <!-- Empty Cart -->
+          <div x-show="cart.length === 0"
+               class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-gray-400"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <p class="mt-2 text-gray-500 text-sm">Keranjang kosong</p>
+          </div>
         </div>
 
         <!-- Cart Total -->
-        @if ($cartItems->isNotEmpty())
-          <div class="border-t border-gray-200 pt-4 space-y-3 flex-shrink-0">
-            <div class="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>Rp {{ number_format($cartTotal, 0, ',', '.') }}</span>
-            </div>
-            <div class="flex justify-between text-gray-900 text-lg font-bold">
-              <span>Total</span>
-              <span>Rp {{ number_format($cartTotal, 0, ',', '.') }}</span>
-            </div>
-            <button onclick="openCustomerTypeModal()"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition">
-              <svg class="w-5 h-5"
-                   fill="none"
-                   stroke="currentColor"
-                   viewBox="0 0 24 24">
-                <path stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              Checkout
-            </button>
+        <div x-show="cart.length > 0"
+             class="border-t border-gray-200 pt-4 space-y-3 flex-shrink-0">
+          <div class="flex justify-between text-gray-600">
+            <span>Subtotal</span>
+            <span x-text="formatCurrency(cartTotal)"></span>
           </div>
-        @endif
+          <div class="flex justify-between text-gray-900 text-lg font-bold">
+            <span>Total</span>
+            <span x-text="formatCurrency(cartTotal)"></span>
+          </div>
+          <button type="button"
+                  @click="openCustomerTypeModal()"
+                  :disabled="isProcessing"
+                  class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg class="w-5 h-5"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Checkout
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
-    // Vanilla JavaScript for POS modals
-    let customerType = '';
+    function posApp() {
+      return {
+        cart: @json($cartItems->values()),
+        cartTotal: {{ $cartTotal }},
+        isProcessing: false,
+        showCustomerTypeModal: false,
+        showCheckoutModal: false,
+        showToast: false,
+        toastMessage: '',
+        toastType: 'success',
+        counterLocation: '{{ $currentCounter ?? '' }}',
+        checkoutForm: {
+          customer_type: '',
+          customer_user_id: '',
+          table_id: '',
+          table_display: '',
+        },
 
-    // Table sessions data from Laravel
-    const tableSessions = @json($tableSessions);
+        init() {
+          // Initialize from session data
+          this.cart = @json($cartItems->values());
+          this.cartTotal = {{ $cartTotal }};
+        },
 
-    function openCustomerTypeModal() {
-      document.getElementById('customerTypeModal').style.display = 'flex';
+        formatCurrency(amount) {
+          return 'Rp ' + new Intl.NumberFormat('id-ID').format(amount);
+        },
+
+        getCounterLabel() {
+          const select = document.getElementById('counterLocationSelect');
+          if (select && this.counterLocation) {
+            const option = select.querySelector(`option[value="${this.counterLocation}"]`);
+            return option ? option.textContent : this.counterLocation;
+          }
+          return '';
+        },
+
+        async selectCounter(event) {
+          const location = event.target.value;
+          try {
+            const response = await fetch('{{ route("admin.pos.select-counter") }}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+              },
+              body: JSON.stringify({ counter_location: location })
+            });
+            const data = await response.json();
+            if (data.success) {
+              this.showToastMessage('Counter location updated', 'success');
+            }
+          } catch (error) {
+            console.error('Error setting counter location:', error);
+            this.showToastMessage('Failed to update counter location', 'error');
+          }
+        },
+
+        async addToCart(productId) {
+          if (this.isProcessing) return;
+          this.isProcessing = true;
+
+          try {
+            const response = await fetch('{{ route("admin.pos.add-to-cart", "__PRODUCT_ID__") }}'.replace('__PRODUCT_ID__', productId), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json'
+              }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              this.cart = data.cart;
+              this.cartTotal = data.cartTotal;
+              this.showToastMessage(data.message, 'success');
+            } else {
+              this.showToastMessage(data.message || 'Failed to add product', 'error');
+            }
+          } catch (error) {
+            console.error('Error adding to cart:', error);
+            this.showToastMessage('Failed to add product to cart', 'error');
+          } finally {
+            this.isProcessing = false;
+          }
+        },
+
+        async updateCartQuantity(productId, action) {
+          if (this.isProcessing) return;
+          this.isProcessing = true;
+
+          try {
+            const response = await fetch('{{ route("admin.pos.update-cart", "__PRODUCT_ID__") }}'.replace('__PRODUCT_ID__', productId), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({ action })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              this.cart = data.cart;
+              this.cartTotal = data.cartTotal;
+            } else {
+              this.showToastMessage(data.message || 'Failed to update cart', 'error');
+            }
+          } catch (error) {
+            console.error('Error updating cart:', error);
+            this.showToastMessage('Failed to update cart', 'error');
+          } finally {
+            this.isProcessing = false;
+          }
+        },
+
+        async removeFromCart(productId) {
+          if (this.isProcessing) return;
+          this.isProcessing = true;
+
+          try {
+            const response = await fetch('{{ route("admin.pos.remove-from-cart", "__PRODUCT_ID__") }}'.replace('__PRODUCT_ID__', productId), {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json'
+              }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              this.cart = data.cart;
+              this.cartTotal = data.cartTotal;
+              this.showToastMessage(data.message, 'success');
+            } else {
+              this.showToastMessage(data.message || 'Failed to remove item', 'error');
+            }
+          } catch (error) {
+            console.error('Error removing from cart:', error);
+            this.showToastMessage('Failed to remove item from cart', 'error');
+          } finally {
+            this.isProcessing = false;
+          }
+        },
+
+        async clearCart() {
+          if (this.isProcessing) return;
+          this.isProcessing = true;
+
+          try {
+            const response = await fetch('{{ route("admin.pos.clear-cart") }}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json'
+              }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              this.cart = [];
+              this.cartTotal = 0;
+              this.showToastMessage(data.message, 'success');
+            } else {
+              this.showToastMessage(data.message || 'Failed to clear cart', 'error');
+            }
+          } catch (error) {
+            console.error('Error clearing cart:', error);
+            this.showToastMessage('Failed to clear cart', 'error');
+          } finally {
+            this.isProcessing = false;
+          }
+        },
+
+        openCustomerTypeModal() {
+          if (this.cart.length === 0) {
+            this.showToastMessage('Keranjang kosong!', 'error');
+            return;
+          }
+          this.showCustomerTypeModal = true;
+        },
+
+        selectCustomerType(type) {
+          this.checkoutForm.customer_type = type;
+          this.showCustomerTypeModal = false;
+          this.showCheckoutModal = true;
+        },
+
+        handleCustomerChange() {
+          if (this.checkoutForm.customer_type === 'booking' && this.checkoutForm.customer_user_id) {
+            const select = document.querySelector('select[name="customer_user_id"]');
+            const selectedOption = select.options[select.selectedIndex];
+            if (selectedOption) {
+              this.checkoutForm.table_id = selectedOption.dataset.tableId || '';
+              const areaName = selectedOption.dataset.areaName || 'N/A';
+              const tableNumber = selectedOption.dataset.tableNumber || 'N/A';
+              this.checkoutForm.table_display = `${areaName} - Meja ${tableNumber}`;
+            }
+          } else {
+            this.checkoutForm.table_id = '';
+            this.checkoutForm.table_display = '';
+          }
+        },
+
+        async submitCheckout() {
+          if (this.isProcessing) return;
+          this.isProcessing = true;
+
+          try {
+            const response = await fetch('{{ route("admin.pos.checkout") }}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(this.checkoutForm)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              this.cart = [];
+              this.cartTotal = 0;
+              this.showCheckoutModal = false;
+              this.showToastMessage(data.message, 'success');
+
+              // Reset form
+              this.checkoutForm = {
+                customer_type: '',
+                customer_user_id: '',
+                table_id: '',
+                table_display: '',
+              };
+            } else {
+              this.showToastMessage(data.message || 'Checkout failed', 'error');
+            }
+          } catch (error) {
+            console.error('Error during checkout:', error);
+            this.showToastMessage('Terjadi kesalahan saat checkout', 'error');
+          } finally {
+            this.isProcessing = false;
+          }
+        },
+
+        showToastMessage(message, type = 'success') {
+          this.toastMessage = message;
+          this.toastType = type;
+          this.showToast = true;
+          setTimeout(() => {
+            this.showToast = false;
+          }, 3000);
+        },
+      };
     }
-
-    function closeCustomerTypeModal() {
-      document.getElementById('customerTypeModal').style.display = 'none';
-    }
-
-    function selectCustomerType(type) {
-      customerType = type;
-      document.getElementById('customerTypeInput').value = type;
-      closeCustomerTypeModal();
-      populateCustomerSelect(type);
-      openCheckoutModal();
-    }
-
-    function populateCustomerSelect(type) {
-      const customerSelect = document.getElementById('customerSelect');
-      customerSelect.innerHTML = '<option value="">Pilih Customer</option>';
-
-      if (type === 'booking') {
-        // Populate with table sessions
-        tableSessions.forEach(session => {
-          const option = document.createElement('option');
-          option.value = session.customer_id;
-          option.dataset.tableId = session.table_id;
-          option.dataset.tableName = session.table?.table_number || 'N/A';
-          option.dataset.areaName = session.table?.area?.name || 'N/A';
-          option.textContent = `${session.customer?.name || 'Unknown'} - ${session.table?.area?.name || 'N/A'} - Meja ${session.table?.table_number || 'N/A'}`;
-          customerSelect.appendChild(option);
-        });
-      } else {
-        // For walk-in, you can add manual customer selection here
-        // For now, just placeholder
-        const option = document.createElement('option');
-        option.value = 'walk-in';
-        option.textContent = 'Walk-in Customer';
-        customerSelect.appendChild(option);
-      }
-    }
-
-    function handleCustomerChange() {
-      const customerSelect = document.getElementById('customerSelect');
-      const selectedOption = customerSelect.options[customerSelect.selectedIndex];
-
-      if (customerType === 'booking' && selectedOption.value) {
-        const tableId = selectedOption.dataset.tableId;
-        const areaName = selectedOption.dataset.areaName;
-        const tableName = selectedOption.dataset.tableName;
-
-        document.getElementById('tableIdInput').value = tableId;
-        document.getElementById('tableDisplay').value = `${areaName} - Meja ${tableName}`;
-      } else {
-        document.getElementById('tableIdInput').value = '';
-        document.getElementById('tableDisplay').value = '';
-      }
-    }
-
-    function openCheckoutModal() {
-      document.getElementById('checkoutModal').style.display = 'flex';
-    }
-
-    function closeCheckoutModal() {
-      document.getElementById('checkoutModal').style.display = 'none';
-    }
-
-    // Close modals when clicking outside
-    document.getElementById('customerTypeModal')?.addEventListener('click', function(e) {
-      if (e.target === this) {
-        closeCustomerTypeModal();
-      }
-    });
-
-    document.getElementById('checkoutModal')?.addEventListener('click', function(e) {
-      if (e.target === this) {
-        closeCheckoutModal();
-      }
-    });
-
-    // Close modals with Escape key
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        closeCustomerTypeModal();
-        closeCheckoutModal();
-      }
-    });
   </script>
 </x-app-layout>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\KitchenOrder;
 use App\Models\KitchenOrderItem;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class KitchenController extends Controller
@@ -28,23 +29,118 @@ class KitchenController extends Controller
         return view('kitchen.index', compact('orders', 'totalOrders', 'baruOrders', 'prosesOrders', 'selesaiOrders'));
     }
 
-    public function toggleItem(KitchenOrderItem $item)
+    /**
+     * Fetch orders as JSON for real-time updates.
+     */
+    public function fetchOrders(Request $request): JsonResponse
     {
-        $item->update(['is_completed' => !$item->is_completed]);
-        $item->kitchenOrder->updateProgress();
+        $query = KitchenOrder::with([
+            'customer.profile',
+            'table.area',
+            'items.recipe',
+        ])->latest();
 
-        return back()->with('success', 'Item status updated!');
+        // Filter by status
+        if ($request->has('status') && in_array($request->status, ['baru', 'proses', 'selesai'])) {
+            $query->where('status', $request->status);
+        }
+
+        $orders = $query->get()->map(function ($order) {
+            return $this->formatOrder($order);
+        });
+
+        $stats = [
+            'total' => KitchenOrder::count(),
+            'baru' => KitchenOrder::where('status', 'baru')->count(),
+            'proses' => KitchenOrder::where('status', 'proses')->count(),
+            'selesai' => KitchenOrder::where('status', 'selesai')->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'orders' => $orders,
+            'stats' => $stats,
+        ]);
     }
 
-    public function completeAll(KitchenOrder $order)
+    public function toggleItem(KitchenOrderItem $item): JsonResponse
+    {
+        $item->update(['is_completed' => ! $item->is_completed]);
+        $item->kitchenOrder->updateProgress();
+
+        // Refresh the order to get updated data
+        $order = KitchenOrder::with([
+            'customer.profile',
+            'table.area',
+            'items.recipe',
+        ])->find($item->kitchen_order_id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Item status updated',
+            'item' => [
+                'id' => $item->id,
+                'is_completed' => $item->is_completed,
+            ],
+            'order' => $this->formatOrder($order),
+        ]);
+    }
+
+    public function completeAll(KitchenOrder $order): JsonResponse
     {
         $order->items()->update(['is_completed' => true]);
         $order->update([
             'progress' => 100,
-            'status' => 'selesai'
+            'status' => 'selesai',
         ]);
 
-        return back()->with('success', 'Semua item telah diselesaikan!');
+        // Refresh the order to get updated data
+        $order = KitchenOrder::with([
+            'customer.profile',
+            'table.area',
+            'items.recipe',
+        ])->find($order->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Semua item telah diselesaikan!',
+            'order' => $this->formatOrder($order),
+        ]);
+    }
+
+    /**
+     * Format order data for JSON response.
+     */
+    protected function formatOrder(KitchenOrder $order): array
+    {
+        return [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'status' => $order->status,
+            'progress' => $order->progress,
+            'created_at' => $order->created_at->format('d M Y H:i'),
+            'customer' => $order->customer ? [
+                'id' => $order->customer->id,
+                'name' => $order->customer->name,
+                'phone' => $order->customer->profile?->phone ?? null,
+            ] : null,
+            'table' => $order->table ? [
+                'id' => $order->table->id,
+                'table_number' => $order->table->table_number,
+                'area' => $order->table->area ? [
+                    'id' => $order->table->area->id,
+                    'name' => $order->table->area->name,
+                ] : null,
+            ] : null,
+            'items' => $order->items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'recipe_id' => $item->recipe_id,
+                    'recipe_name' => $item->recipe?->name ?? 'Unknown',
+                    'quantity' => $item->quantity,
+                    'is_completed' => $item->is_completed,
+                ];
+            }),
+        ];
     }
 }
-

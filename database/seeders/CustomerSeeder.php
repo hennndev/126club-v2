@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
+use App\Models\CustomerUser;
 use App\Models\User;
 use App\Models\UserProfile;
-use App\Models\CustomerUser;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class CustomerSeeder extends Seeder
@@ -144,7 +144,8 @@ class CustomerSeeder extends Seeder
 
             // Create customer user
             CustomerUser::create([
-                'customer_code' => 'CUST-' . ($index + 1),
+                'accurate_id' => 1000 + ($index + 1), // Generate dummy accurate_id
+                'customer_code' => 'CUST-'.($index + 1),
                 'user_id' => $user->id,
                 'user_profile_id' => $profile->id,
                 'total_visits' => $customerData['total_visits'],
