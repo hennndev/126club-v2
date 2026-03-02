@@ -25,7 +25,7 @@ class WaiterPerformanceController extends Controller
         $selectedWaiter = null;
         $stats = null;
         $topProducts = collect();
-        $recentOrders = collect();
+        $recentSessions = collect();
         $allWaitersStats = collect();
         $rank = null;
 
@@ -33,78 +33,146 @@ class WaiterPerformanceController extends Controller
             $selectedWaiter = $waiters->firstWhere('id', $waiterId) ?? $waiters->first();
 
             if ($selectedWaiter) {
-                $ordersQuery = DB::table('orders')
-                    ->where('created_by', $selectedWaiter->id)
-                    ->where('status', '!=', 'cancelled')
-                    ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']]);
+                // Orders credited to sessions this waiter handled
+                $ordersBase = DB::table('orders')
+                    ->join('table_sessions', 'orders.table_session_id', '=', 'table_sessions.id')
+                    ->where('table_sessions.waiter_id', $selectedWaiter->id)
+                    ->where('orders.status', '!=', 'cancelled')
+                    ->whereBetween('orders.created_at', [$dateRange['start'], $dateRange['end']]);
 
-                $totalSales = (clone $ordersQuery)->sum('total');
-                $totalTransactions = (clone $ordersQuery)->count();
-                $avgPerTransaction = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
+                $totalOrderRevenue = (clone $ordersBase)->sum('orders.total');
+                $totalTransactions = (clone $ordersBase)->count();
+                $avgPerTransaction = $totalTransactions > 0 ? $totalOrderRevenue / $totalTransactions : 0;
 
-                // Rank among all waiters
-                $allSales = [];
+                // Sessions handled in period
+                $sessionsBase = DB::table('table_sessions')
+                    ->where('waiter_id', $selectedWaiter->id)
+                    ->whereBetween('checked_in_at', [$dateRange['start'], $dateRange['end']]);
+
+                $customersHandled = (clone $sessionsBase)->count();
+                $completedSessions = (clone $sessionsBase)->where('status', 'completed')->count();
+
+                // Total billing revenue (orders + min charge) from their completed sessions
+                $sessionRevenue = DB::table('billings')
+                    ->join('table_sessions', 'billings.table_session_id', '=', 'table_sessions.id')
+                    ->where('table_sessions.waiter_id', $selectedWaiter->id)
+                    ->where('billings.billing_status', 'paid')
+                    ->whereBetween('table_sessions.checked_in_at', [$dateRange['start'], $dateRange['end']])
+                    ->sum('billings.grand_total');
+
+                // Avg session duration from completed sessions
+                $completedRows = DB::table('table_sessions')
+                    ->where('waiter_id', $selectedWaiter->id)
+                    ->whereNotNull('checked_in_at')
+                    ->whereNotNull('checked_out_at')
+                    ->whereBetween('checked_in_at', [$dateRange['start'], $dateRange['end']])
+                    ->select('checked_in_at', 'checked_out_at')
+                    ->get();
+
+                $avgDurationMinutes = $completedRows->isNotEmpty()
+                    ? (int) round($completedRows->avg(fn ($r) => abs(
+                        \Carbon\Carbon::parse($r->checked_out_at)->diffInMinutes(\Carbon\Carbon::parse($r->checked_in_at))
+                    )))
+                    : 0;
+
+                // Rank by session revenue among all waiters
+                $allRevenues = [];
                 foreach ($waiters as $w) {
-                    $allSales[$w->id] = DB::table('orders')
-                        ->where('created_by', $w->id)
-                        ->where('status', '!=', 'cancelled')
-                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->sum('total');
+                    $allRevenues[$w->id] = DB::table('billings')
+                        ->join('table_sessions', 'billings.table_session_id', '=', 'table_sessions.id')
+                        ->where('table_sessions.waiter_id', $w->id)
+                        ->where('billings.billing_status', 'paid')
+                        ->whereBetween('table_sessions.checked_in_at', [$dateRange['start'], $dateRange['end']])
+                        ->sum('billings.grand_total');
                 }
-                arsort($allSales);
-                $rank = array_search($selectedWaiter->id, array_keys($allSales)) + 1;
+                arsort($allRevenues);
+                $rank = array_search($selectedWaiter->id, array_keys($allRevenues)) + 1;
 
-                $stats = compact('totalSales', 'totalTransactions', 'avgPerTransaction');
+                $stats = compact(
+                    'totalOrderRevenue', 'totalTransactions', 'avgPerTransaction',
+                    'customersHandled', 'completedSessions', 'sessionRevenue', 'avgDurationMinutes'
+                );
 
-                // Top 5 products
+                // Top 5 products from sessions assigned to this waiter
                 $topProducts = DB::table('order_items')
                     ->join('orders', 'order_items.order_id', '=', 'orders.id')
-                    ->where('orders.created_by', $selectedWaiter->id)
+                    ->join('table_sessions', 'orders.table_session_id', '=', 'table_sessions.id')
+                    ->where('table_sessions.waiter_id', $selectedWaiter->id)
                     ->where('orders.status', '!=', 'cancelled')
                     ->where('order_items.status', '!=', 'cancelled')
                     ->whereBetween('orders.created_at', [$dateRange['start'], $dateRange['end']])
-                    ->select('order_items.item_name', DB::raw('SUM(order_items.quantity) as total_qty'), DB::raw('SUM(order_items.subtotal) as total_revenue'))
+                    ->select(
+                        'order_items.item_name',
+                        DB::raw('SUM(order_items.quantity) as total_qty'),
+                        DB::raw('SUM(order_items.subtotal) as total_revenue')
+                    )
                     ->groupBy('order_items.item_name')
                     ->orderByDesc('total_qty')
                     ->limit(5)
                     ->get();
 
-                // Recent 10 transactions
-                $recentOrders = DB::table('orders')
-                    ->join('table_sessions', 'orders.table_session_id', '=', 'table_sessions.id')
+                // Recent sessions handled (with customer name, table, billing total, duration)
+                $recentSessions = DB::table('table_sessions')
                     ->join('tables', 'table_sessions.table_id', '=', 'tables.id')
-                    ->where('orders.created_by', $selectedWaiter->id)
-                    ->where('orders.status', '!=', 'cancelled')
-                    ->whereBetween('orders.created_at', [$dateRange['start'], $dateRange['end']])
-                    ->select('orders.*', 'tables.table_number')
-                    ->orderByDesc('orders.created_at')
+                    ->leftJoin('billings', 'billings.table_session_id', '=', 'table_sessions.id')
+                    ->leftJoin('users', 'table_sessions.customer_id', '=', 'users.id')
+                    ->where('table_sessions.waiter_id', $selectedWaiter->id)
+                    ->whereBetween('table_sessions.checked_in_at', [$dateRange['start'], $dateRange['end']])
+                    ->select(
+                        'table_sessions.id',
+                        'table_sessions.session_code',
+                        'table_sessions.checked_in_at',
+                        'table_sessions.checked_out_at',
+                        'table_sessions.status',
+                        'tables.table_number',
+                        'billings.grand_total',
+                        'billings.orders_total',
+                        'billings.tax_percentage',
+                        'billings.discount_amount',
+                        'billings.billing_status',
+                        'users.name as customer_name'
+                    )
+                    ->orderByDesc('table_sessions.checked_in_at')
                     ->limit(10)
                     ->get();
             }
         } else {
-            // All waiters stats
+            // All waiters comparison
             foreach ($waiters as $w) {
-                $q = DB::table('orders')
-                    ->where('created_by', $w->id)
-                    ->where('status', '!=', 'cancelled')
-                    ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']]);
+                $sessQ = DB::table('table_sessions')
+                    ->where('waiter_id', $w->id)
+                    ->whereBetween('checked_in_at', [$dateRange['start'], $dateRange['end']]);
 
-                $sales = (clone $q)->sum('total');
-                $txCount = (clone $q)->count();
+                $ordQ = DB::table('orders')
+                    ->join('table_sessions', 'orders.table_session_id', '=', 'table_sessions.id')
+                    ->where('table_sessions.waiter_id', $w->id)
+                    ->where('orders.status', '!=', 'cancelled')
+                    ->whereBetween('orders.created_at', [$dateRange['start'], $dateRange['end']]);
+
+                $sessionRevenue = DB::table('billings')
+                    ->join('table_sessions', 'billings.table_session_id', '=', 'table_sessions.id')
+                    ->where('table_sessions.waiter_id', $w->id)
+                    ->where('billings.billing_status', 'paid')
+                    ->whereBetween('table_sessions.checked_in_at', [$dateRange['start'], $dateRange['end']])
+                    ->sum('billings.grand_total');
+
+                $customersHandled = (clone $sessQ)->count();
+                $txCount = (clone $ordQ)->count();
 
                 $allWaitersStats->push((object) [
                     'user' => $w,
-                    'totalSales' => $sales,
+                    'sessionRevenue' => $sessionRevenue,
+                    'customersHandled' => $customersHandled,
                     'totalTransactions' => $txCount,
-                    'avgPerTransaction' => $txCount > 0 ? $sales / $txCount : 0,
+                    'avgPerCustomer' => $customersHandled > 0 ? $sessionRevenue / $customersHandled : 0,
                 ]);
             }
-            $allWaitersStats = $allWaitersStats->sortByDesc('totalSales')->values();
+            $allWaitersStats = $allWaitersStats->sortByDesc('sessionRevenue')->values();
         }
 
         return view('waiter-performance.index', compact(
             'period', 'mode', 'waiters', 'selectedWaiter', 'stats',
-            'topProducts', 'recentOrders', 'allWaitersStats', 'rank', 'dateRange'
+            'topProducts', 'recentSessions', 'allWaitersStats', 'rank', 'dateRange'
         ));
     }
 

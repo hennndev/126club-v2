@@ -15,7 +15,7 @@
   @endphp
 
   <div class="p-6"
-       x-data="bookingPage(@js($tablesJson), @js($todayBookedTableIds->values()), @js($todayCheckedInTableIds->values()))">
+       x-data="bookingPage(@js($tablesJson), @js($activeBookingsByTable->keys()->values()), @js(collect()))">
 
     @if (session('success'))
       <div class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm">
@@ -71,7 +71,7 @@
     <div class="flex items-center gap-1 mb-6">
       <a href="{{ route('admin.bookings.index', ['tab' => 'all']) }}"
          class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition
-                {{ $tab !== 'active' && $tab !== 'history' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100' }}">
+                {{ $tab === 'all' || ($tab !== 'active' && $tab !== 'pending' && $tab !== 'history') ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100' }}">
         <svg class="w-4 h-4"
              fill="none"
              stroke="currentColor"
@@ -82,6 +82,26 @@
                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
         Booking
+      </a>
+      <a href="{{ route('admin.bookings.index', ['tab' => 'pending']) }}"
+         class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition
+                {{ $tab === 'pending' ? 'bg-yellow-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100' }}">
+        <svg class="w-4 h-4"
+             fill="none"
+             stroke="currentColor"
+             viewBox="0 0 24 24">
+          <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Pending
+        @if ($pendingBookings > 0)
+          <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold
+                       {{ $tab === 'pending' ? 'bg-white text-yellow-600' : 'bg-yellow-500 text-white' }}">
+            {{ $pendingBookings }}
+          </span>
+        @endif
       </a>
       <a href="{{ route('admin.bookings.index', ['tab' => 'active']) }}"
          class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition
@@ -95,7 +115,13 @@
                 stroke-width="2"
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Active Booking
+        Active Tables
+        @if ($activeSessions->count() > 0)
+          <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold
+                       {{ $tab === 'active' ? 'bg-white text-slate-700' : 'bg-blue-500 text-white' }}">
+            {{ $activeSessions->count() }}
+          </span>
+        @endif
       </a>
       <a href="{{ route('admin.bookings.index', ['tab' => 'history']) }}"
          class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition
@@ -113,7 +139,566 @@
       </a>
     </div>
 
-    @if ($tab !== 'history')
+    @if ($tab === 'pending')
+      {{-- PENDING TAB --}}
+
+      {{-- Top bar: stats + date filter --}}
+      <div class="flex items-start justify-between gap-4 mb-5 flex-wrap">
+        <div class="flex items-center gap-3">
+          <div class="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-4 flex items-center gap-3">
+            <div class="w-9 h-9 bg-yellow-100 rounded-lg flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-yellow-600"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-yellow-700">{{ $pendingBookings }}</div>
+              <div class="text-sm text-yellow-600">Total Pending</div>
+            </div>
+          </div>
+          @if (!empty($conflictingPendingKeys))
+            <div class="bg-orange-50 border border-orange-200 rounded-xl px-5 py-4 flex items-center gap-3">
+              <div class="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-orange-600"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <div class="text-xl font-bold text-orange-700">{{ count($conflictingPendingKeys) }}</div>
+                <div class="text-sm text-orange-600">Konflik Meja</div>
+              </div>
+            </div>
+          @endif
+        </div>
+
+        {{-- Date range filter --}}
+        <form method="GET"
+              action="{{ route('admin.bookings.index') }}"
+              class="flex items-center gap-2 flex-wrap">
+          <input type="hidden"
+                 name="tab"
+                 value="pending">
+          <input type="date"
+                 name="date_from"
+                 value="{{ request('date_from') }}"
+                 class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white text-gray-700">
+          <span class="text-gray-400 font-medium text-sm">–</span>
+          <input type="date"
+                 name="date_to"
+                 value="{{ request('date_to') }}"
+                 class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white text-gray-700">
+          <button type="submit"
+                  class="px-3 py-2 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition">Filter</button>
+          @if (request('date_from') || request('date_to'))
+            <a href="{{ route('admin.bookings.index', ['tab' => 'pending']) }}"
+               class="px-3 py-2 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Reset</a>
+          @endif
+        </form>
+      </div>
+
+      {{-- Conflict / blocked notices --}}
+      @if (!empty($conflictingPendingKeys))
+        <div class="flex items-center gap-3 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl mb-4 text-sm text-orange-800">
+          <svg class="w-4 h-4 text-orange-500 shrink-0"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>Terdapat <strong>{{ count($conflictingPendingKeys) }} slot meja</strong> yang dipesan oleh lebih dari satu customer. Baris bertanda
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-200 text-orange-800 rounded text-xs font-semibold">⚠ Konflik</span>
+            hanya bisa dikonfirmasi salah satunya — yang lain akan otomatis diblokir.
+          </span>
+        </div>
+      @endif
+
+      {{-- Pending bookings table --}}
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        @if ($bookings->isEmpty())
+          <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+            <svg class="w-12 h-12 mb-3 text-gray-300"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-sm font-medium">Tidak ada booking pending</p>
+            <p class="text-xs text-gray-400 mt-1">Semua booking sudah dikonfirmasi atau diselesaikan</p>
+          </div>
+        @else
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100">
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Meja</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal & Waktu</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Catatan</th>
+                  <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @foreach ($bookings as $booking)
+                  @php
+                    $slotKey = $booking->table_id . '_' . $booking->reservation_date;
+                    $isConflict = in_array($slotKey, $conflictingPendingKeys);
+                    $isBlocked = in_array($slotKey, $blockedPendingKeys);
+                    $customerName = $booking->customer->profile->name ?? ($booking->customer->customerUser->name ?? ($booking->customer->name ?? '-'));
+                    $areaName = $booking->table?->area?->name ?? '';
+                    $areaBadge = match (true) {
+                        str_contains(strtolower($areaName), 'room') || str_contains(strtolower($areaName), 'vip') => 'bg-purple-100 text-purple-700',
+                        str_contains(strtolower($areaName), 'balcony') => 'bg-violet-100 text-violet-700',
+                        str_contains(strtolower($areaName), 'lounge') => 'bg-cyan-100 text-cyan-700',
+                        strlen($areaName) > 0 => 'bg-gray-100 text-gray-600',
+                        default => 'bg-gray-100 text-gray-500',
+                    };
+                  @endphp
+                  <tr class="hover:bg-gray-50 transition-colors {{ $isConflict ? 'bg-orange-50 hover:bg-orange-100' : ($isBlocked ? 'bg-red-50 hover:bg-red-100' : '') }}">
+
+                    {{-- ID --}}
+                    <td class="px-4 py-4 whitespace-nowrap">
+                      <span class="text-xs font-mono font-semibold text-gray-500">
+                        #{{ $booking->booking_code_formatted }}
+                      </span>
+                    </td>
+
+                    {{-- Customer --}}
+                    <td class="px-4 py-4">
+                      <div class="font-semibold text-gray-900">{{ $customerName }}</div>
+                      @php
+                        $phone = $booking->customer->profile?->phone ?? null;
+                      @endphp
+                      @if ($phone)
+                        <div class="text-xs text-gray-400 mt-0.5">{{ $phone }}</div>
+                      @endif
+                    </td>
+
+                    {{-- Meja --}}
+                    <td class="px-4 py-4 whitespace-nowrap">
+                      <div class="font-medium text-gray-900">{{ $booking->table?->table_number ?? '-' }}</div>
+                      @if ($areaName)
+                        <span class="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full {{ $areaBadge }}">
+                          {{ $areaName }}
+                        </span>
+                      @endif
+                      {{-- Conflict badge --}}
+                      @if ($isBlocked)
+                        <div class="mt-1.5">
+                          <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                            <svg class="w-3 h-3"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+                              <path stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            Sudah dikonfirmasi customer lain
+                          </span>
+                        </div>
+                      @elseif ($isConflict)
+                        <div class="mt-1.5">
+                          <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full">
+                            <svg class="w-3 h-3"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+                              <path stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            ⚠ Konflik
+                          </span>
+                        </div>
+                      @endif
+                    </td>
+
+                    {{-- Date & Time --}}
+                    <td class="px-4 py-4 whitespace-nowrap">
+                      <div class="font-medium text-gray-900">
+                        {{ \Carbon\Carbon::parse($booking->reservation_date)->format('d M Y') }}
+                      </div>
+                      <div class="text-xs text-gray-400 mt-0.5">
+                        {{ $booking->reservation_time ? \Carbon\Carbon::parse($booking->reservation_time)->format('H:i') : '-' }}
+                      </div>
+                    </td>
+
+                    {{-- Note --}}
+                    <td class="px-4 py-4 max-w-[180px]">
+                      @if ($booking->note)
+                        <p class="text-xs text-gray-500 line-clamp-2">{{ $booking->note }}</p>
+                      @else
+                        <span class="text-xs text-gray-300">—</span>
+                      @endif
+                    </td>
+
+                    {{-- Actions --}}
+                    <td class="px-4 py-4 whitespace-nowrap">
+                      <div class="flex items-center justify-end gap-2">
+                        @if (!$isBlocked)
+                          {{-- Confirm --}}
+                          <form method="POST"
+                                action="{{ route('admin.bookings.updateStatus', $booking) }}"
+                                class="inline">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden"
+                                   name="status"
+                                   value="confirmed">
+                            <button type="submit"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition"
+                                    onclick="return confirm('Konfirmasi booking ini? Meja akan ditandai sebagai Booked.')">
+                              <svg class="w-3.5 h-3.5"
+                                   fill="none"
+                                   stroke="currentColor"
+                                   viewBox="0 0 24 24">
+                                <path stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M5 13l4 4L19 7" />
+                              </svg>
+                              Konfirmasi
+                            </button>
+                          </form>
+                        @endif
+
+                        {{-- Reject --}}
+                        <form method="POST"
+                              action="{{ route('admin.bookings.updateStatus', $booking) }}"
+                              class="inline">
+                          @csrf
+                          @method('PATCH')
+                          <input type="hidden"
+                                 name="status"
+                                 value="rejected">
+                          <button type="submit"
+                                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition"
+                                  onclick="return confirm('Tolak booking ini?')">
+                            <svg class="w-3.5 h-3.5"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+                              <path stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Tolak
+                          </button>
+                        </form>
+
+                        {{-- Edit / ubah status --}}
+                        <button onclick="openStatusModal({{ $booking->id }}, 'pending')"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                          <svg class="w-3.5 h-3.5"
+                               fill="none"
+                               stroke="currentColor"
+                               viewBox="0 0 24 24">
+                            <path stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Ubah
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @endif
+      </div>
+    @elseif ($tab === 'active')
+      {{-- ACTIVE TABLES TAB --}}
+
+      {{-- Stats row --}}
+      <div class="grid grid-cols-3 gap-4 mb-5">
+        <div class="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 flex items-center gap-4">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-blue-500"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-2xl font-bold text-blue-700">{{ $activeSessions->count() }}</div>
+            <div class="text-sm text-blue-500">Meja Aktif</div>
+          </div>
+        </div>
+        <div class="bg-green-50 border border-green-100 rounded-xl px-5 py-4 flex items-center gap-4">
+          <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-green-500"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-green-700">
+              Rp {{ number_format($activeSessions->sum(fn($s) => $s->billing?->grand_total ?? 0), 0, ',', '.') }}
+            </div>
+            <div class="text-sm text-green-500">Total Tagihan Berjalan</div>
+          </div>
+        </div>
+        <div class="bg-amber-50 border border-amber-100 rounded-xl px-5 py-4 flex items-center gap-4">
+          <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-amber-500"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-amber-700">
+              @php
+                $avgMin = $activeSessions->count() > 0 ? (int) round($activeSessions->avg(fn($s) => $s->checked_in_at ? abs(now()->diffInMinutes($s->checked_in_at)) : 0)) : null;
+              @endphp
+              @if ($avgMin !== null)
+                {{ $avgMin >= 60 ? floor($avgMin / 60) . 'j ' . $avgMin % 60 . 'm' : $avgMin . ' mnt' }}
+              @else
+                —
+              @endif
+            </div>
+            <div class="text-sm text-amber-500">Rata-rata Durasi</div>
+          </div>
+        </div>
+      </div>
+
+      {{-- Sessions table --}}
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        @if ($activeSessions->isEmpty())
+          <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+            <svg class="w-12 h-12 mb-3 text-gray-300"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <p class="text-sm font-medium">Tidak ada sesi aktif</p>
+            <p class="text-xs text-gray-400 mt-1">Belum ada customer yang check-in</p>
+          </div>
+        @else
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100">
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Session</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Meja</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Waiter</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Check-in</th>
+                  <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Min. Charge</th>
+                  <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Orders</th>
+                  <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total (Live)</th>
+                  <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @foreach ($activeSessions as $session)
+                  @php
+                    $checkedInAt = $session->checked_in_at ? \Carbon\Carbon::parse($session->checked_in_at)->setTimezone('Asia/Jakarta') : null;
+
+                    $billing = $session->billing;
+                    $reservation = $session->reservation;
+                    $customerName = $reservation?->customer?->profile?->name ?? ($reservation?->customer?->customerUser?->name ?? ($reservation?->customer?->name ?? ($session->customer?->profile?->name ?? ($session->customer?->name ?? 'Tamu'))));
+                    $phone = $reservation?->customer?->profile?->phone ?? ($session->customer?->profile?->phone ?? null);
+                    $areaName = $session->table?->area?->name ?? '';
+                    $areaBadge = match (true) {
+                        str_contains(strtolower($areaName), 'room') || str_contains(strtolower($areaName), 'vip') => 'bg-purple-100 text-purple-700',
+                        str_contains(strtolower($areaName), 'balcony') => 'bg-violet-100 text-violet-700',
+                        str_contains(strtolower($areaName), 'lounge') => 'bg-cyan-100 text-cyan-700',
+                        strlen($areaName) > 0 => 'bg-gray-100 text-gray-600',
+                        default => 'bg-gray-100 text-gray-500',
+                    };
+
+                    // Billing state
+                    $canClose = $billing && in_array($billing->billing_status, ['draft', 'finalized']) && $billing->orders_total >= $billing->minimum_charge;
+                    $belowMinCharge = $billing && in_array($billing->billing_status, ['draft', 'finalized']) && $billing->orders_total < $billing->minimum_charge;
+
+                    // Waiter
+                    $waiterDisplayName = $session->waiter?->profile?->name ?? ($session->waiter?->name ?? null);
+                    $waiterId = $session->waiter_id;
+
+                    // Compute live total: only orders + tax - discount (min_charge applied at close)
+                    $ordersSubtotal = (float) ($billing?->orders_total ?? 0);
+                    $computedGrandTotal = $ordersSubtotal + $ordersSubtotal * (($billing?->tax_percentage ?? 0) / 100) - (float) ($billing?->discount_amount ?? 0);
+                  @endphp
+                  <tr class="hover:bg-gray-50 transition-colors">
+
+                    {{-- Session code --}}
+                    <td class="px-5 py-4 whitespace-nowrap">
+                      <div class="font-mono text-xs font-semibold text-gray-500">{{ $session->session_code }}</div>
+                      @if ($reservation)
+                        <div class="text-xs text-gray-400 mt-0.5">#{{ $reservation->booking_code_formatted }}</div>
+                      @endif
+                    </td>
+
+                    {{-- Table --}}
+                    <td class="px-5 py-4 whitespace-nowrap">
+                      <div class="font-semibold text-gray-900">{{ $session->table?->table_number ?? '—' }}</div>
+                      @if ($areaName)
+                        <span class="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full {{ $areaBadge }}">
+                          {{ $areaName }}
+                        </span>
+                      @endif
+                    </td>
+
+                    {{-- Customer --}}
+                    <td class="px-5 py-4">
+                      <div class="font-medium text-gray-900">{{ $customerName }}</div>
+                      @if ($phone)
+                        <div class="text-xs text-gray-400 mt-0.5">{{ $phone }}</div>
+                      @endif
+                    </td>
+
+                    {{-- Waiter --}}
+                    <td class="px-5 py-4 whitespace-nowrap">
+                      @if ($waiterDisplayName)
+                        <div class="font-medium text-gray-900 text-sm">{{ $waiterDisplayName }}</div>
+                      @else
+                        <span class="text-xs text-gray-400 italic">Belum di-assign</span>
+                      @endif
+                      @if ($reservation)
+                        <button onclick="openAssignWaiterModal({{ $reservation->id }}, {{ $waiterId ?? 'null' }})"
+                                class="mt-1 text-xs text-blue-600 hover:underline">
+                          {{ $waiterDisplayName ? 'Ganti' : 'Assign' }}
+                        </button>
+                      @endif
+                    </td>
+
+                    {{-- Check-in --}}
+                    <td class="px-5 py-4 whitespace-nowrap">
+                      <div class="font-medium text-gray-900">
+                        {{ $checkedInAt ? $checkedInAt->format('d M Y') : '—' }}
+                      </div>
+                      <div class="text-xs text-gray-400 mt-0.5">
+                        {{ $checkedInAt ? $checkedInAt->format('H:i') : '' }}
+                      </div>
+                    </td>
+
+                    {{-- Min charge --}}
+                    <td class="px-5 py-4 whitespace-nowrap text-right">
+                      <div class="text-sm text-gray-700">
+                        Rp {{ number_format($billing?->minimum_charge ?? 0, 0, ',', '.') }}
+                      </div>
+                    </td>
+
+                    {{-- Orders total --}}
+                    <td class="px-5 py-4 whitespace-nowrap text-right">
+                      <div class="text-sm text-gray-700">
+                        Rp {{ number_format($billing?->orders_total ?? 0, 0, ',', '.') }}
+                      </div>
+                    </td>
+
+                    {{-- Live total --}}
+                    <td class="px-5 py-4 whitespace-nowrap text-right">
+                      <div class="font-bold text-gray-900">
+                        Rp {{ number_format($computedGrandTotal, 0, ',', '.') }}
+                      </div>
+                      @if ($belowMinCharge)
+                        <div class="text-xs text-amber-600 mt-0.5">
+                          Min. Rp {{ number_format($billing->minimum_charge, 0, ',', '.') }}
+                        </div>
+                      @elseif ($billing?->billing_status === 'paid')
+                        <div class="text-xs text-green-600 mt-0.5">Lunas</div>
+                      @endif
+                    </td>
+
+                    {{-- Actions --}}
+                    <td class="px-5 py-4 whitespace-nowrap">
+                      <div class="flex items-center justify-end gap-2">
+                        <button onclick="openOrderHistoryModal('{{ $session->session_code }}')"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
+                          <svg class="w-3.5 h-3.5"
+                               fill="none"
+                               stroke="currentColor"
+                               viewBox="0 0 24 24">
+                            <path stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          Orders
+                        </button>
+                        @if ($reservation)
+                          @if ($canClose)
+                            <button onclick="openCloseBillingModal({{ $reservation->id }}, {{ (float) $billing->minimum_charge }}, {{ (float) $billing->orders_total }}, {{ (float) $billing->discount_amount }}, {{ (float) $computedGrandTotal }})"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
+                              <svg class="w-3.5 h-3.5"
+                                   fill="none"
+                                   stroke="currentColor"
+                                   viewBox="0 0 24 24">
+                                <path stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm0 0h10" />
+                              </svg>
+                              Tutup Billing
+                            </button>
+                          @endif
+                          <button onclick="openStatusModal({{ $reservation->id }}, '{{ $reservation->status }}')"
+                                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                            <svg class="w-3.5 h-3.5"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+                              <path stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Status
+                          </button>
+                        @endif
+                      </div>
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @endif
+      </div>
+    @elseif ($tab !== 'history')
       <!-- Stats Row -->
       <div class="grid grid-cols-3 gap-4 mb-5">
         <!-- Available -->
@@ -186,7 +771,7 @@
                   stroke-width="2"
                   d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
           </svg>
-          <span class="text-xs font-semibold text-blue-700">Status Meja Real-Time (Hari Ini)</span>
+          <span class="text-xs font-semibold text-blue-700">Status Meja Real-Time</span>
         </div>
         <div class="flex items-center gap-4 text-xs text-gray-500">
           <span class="flex items-center gap-1.5">
@@ -272,9 +857,9 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         @foreach ($tables as $table)
           @php
-            $isBooked = $todayBookedTableIds->contains($table->id);
-            $isCheckedIn = $todayCheckedInTableIds->contains($table->id);
-            $tableBooking = $todayActiveBookingsByTable[$table->id] ?? null;
+            $isBooked = $table->status === 'reserved';
+            $isCheckedIn = $table->status === 'occupied';
+            $tableBooking = $activeBookingsByTable[$table->id] ?? null;
             $tableAreaKey = strtolower($table->area->code ?? ($table->area->name ?? ''));
             $tableAreaKey = str_contains($tableAreaKey, 'room') || str_contains($tableAreaKey, 'vip') ? 'room' : $tableAreaKey;
             $tableAreaKey = str_contains($tableAreaKey, 'balcony') ? 'balcony' : $tableAreaKey;
@@ -802,6 +1387,12 @@
 
     <!-- Close Billing Modal -->
     @include('bookings._components.close-billing-modal')
+
+    <!-- Assign Waiter Modal -->
+    @include('bookings._components.assign-waiter-modal')
+
+    <!-- Order History Modal -->
+    @include('bookings._components.order-history-modal')
   </div>
 
   @push('scripts')
@@ -885,6 +1476,110 @@
 
       function closeStatusModal() {
         document.getElementById('statusModal')?.classList.add('hidden');
+      }
+
+      function openAssignWaiterModal(bookingId, currentWaiterId) {
+        const modal = document.getElementById('assignWaiterModal');
+        const form = document.getElementById('assignWaiterForm');
+        form.action = `/admin/bookings/${bookingId}/assign-waiter`;
+        const select = document.getElementById('assignWaiterSelect');
+        if (select) {
+          select.value = currentWaiterId ?? '';
+        }
+        modal?.classList.remove('hidden');
+      }
+
+      function closeAssignWaiterModal() {
+        document.getElementById('assignWaiterModal')?.classList.add('hidden');
+      }
+
+      @php
+        $sessionOrdersJson = $activeSessions->keyBy('session_code')->map(function ($s) {
+            return [
+                'customer' => $s->reservation?->customer?->profile?->name ?? ($s->reservation?->customer?->customerUser?->name ?? ($s->reservation?->customer?->name ?? 'Tamu')),
+                'table' => $s->table?->table_number ?? '—',
+                'orders' => $s->orders
+                    ->map(function ($o) {
+                        return [
+                            'order_number' => $o->order_number,
+                            'ordered_at' => $o->ordered_at?->setTimezone('Asia/Jakarta')->format('H:i'),
+                            'status' => $o->status,
+                            'total' => (float) $o->total,
+                            'items' => $o->items
+                                ->map(function ($i) {
+                                    return [
+                                        'item_name' => $i->item_name,
+                                        'quantity' => $i->quantity,
+                                        'price' => (float) $i->price,
+                                        'subtotal' => (float) $i->subtotal,
+                                    ];
+                                })
+                                ->values(),
+                        ];
+                    })
+                    ->values(),
+            ];
+        });
+      @endphp
+      const sessionOrdersData = @json($sessionOrdersJson);
+
+      function openOrderHistoryModal(sessionCode) {
+        const data = sessionOrdersData[sessionCode];
+        if (!data) return;
+
+        document.getElementById('orderHistoryTitle').textContent =
+          data.customer + ' — Meja ' + data.table;
+
+        const container = document.getElementById('orderHistoryBody');
+        if (data.orders.length === 0) {
+          container.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Belum ada order.</p>';
+        } else {
+          container.innerHTML = data.orders.map(order => {
+            const statusClass = {
+              pending: 'bg-yellow-100 text-yellow-700',
+              processing: 'bg-blue-100 text-blue-700',
+              completed: 'bg-green-100 text-green-700',
+              cancelled: 'bg-red-100 text-red-700',
+            } [order.status] || 'bg-gray-100 text-gray-600';
+
+            const itemRows = order.items.map(item =>
+              `<tr class="border-b border-gray-50 last:border-0">
+                <td class="py-1.5 pr-3 text-sm text-gray-700">${item.item_name}</td>
+                <td class="py-1.5 px-3 text-sm text-gray-500 text-center">${item.quantity}</td>
+                <td class="py-1.5 pl-3 text-sm text-gray-500 text-right">Rp ${item.price.toLocaleString('id-ID')}</td>
+                <td class="py-1.5 pl-3 text-sm font-medium text-gray-700 text-right">Rp ${item.subtotal.toLocaleString('id-ID')}</td>
+              </tr>`
+            ).join('');
+
+            return `<div class="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+              <div class="flex items-center justify-between bg-gray-50 px-4 py-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono font-semibold text-gray-600">${order.order_number}</span>
+                  <span class="text-xs text-gray-400">${order.ordered_at ?? ''}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${order.status}</span>
+                  <span class="text-sm font-bold text-gray-900">Rp ${order.total.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+              <table class="w-full px-4">
+                <thead><tr class="bg-white">
+                  <th class="px-4 py-1.5 text-left text-xs text-gray-400 font-medium">Item</th>
+                  <th class="px-3 py-1.5 text-center text-xs text-gray-400 font-medium">Qty</th>
+                  <th class="px-3 py-1.5 text-right text-xs text-gray-400 font-medium">Harga</th>
+                  <th class="px-3 py-1.5 text-right text-xs text-gray-400 font-medium">Subtotal</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-50 px-4">${itemRows}</tbody>
+              </table>
+            </div>`;
+          }).join('');
+        }
+
+        document.getElementById('orderHistoryModal')?.classList.remove('hidden');
+      }
+
+      function closeOrderHistoryModal() {
+        document.getElementById('orderHistoryModal')?.classList.add('hidden');
       }
 
       // History tab client-side filter

@@ -55,21 +55,7 @@
         </x-slot>
         Meja
       </x-nav-link>
-      <x-nav-link href="{{ route('admin.active-tables.index') }}"
-                  :active="request()->routeIs('admin.active-tables.*')">
-        <x-slot name="icon">
-          <svg class="w-5 h-5"
-               fill="none"
-               stroke="currentColor"
-               viewBox="0 0 24 24">
-            <path stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </x-slot>
-        Active Tables
-      </x-nav-link>
+      {{-- Active Tables dipindahkan ke tab Bookings --}}
       <x-nav-link href="{{ route('admin.table-scanner.index') }}"
                   :active="request()->routeIs('admin.table-scanner.*')">
         <x-slot name="icon">

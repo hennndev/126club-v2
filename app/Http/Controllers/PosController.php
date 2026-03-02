@@ -91,15 +91,10 @@ class PosController extends Controller
         });
 
         // Get active table sessions for booking customers
-        $tableSessions = TableSession::with(['customer.profile', 'customer.customerUser', 'table.area', 'billing'])
+        $tableSessions = TableSession::with(['customer.profile', 'customer.customerUser', 'table.area', 'billing', 'waiter.profile'])
             ->where('status', 'active')
             ->whereNotNull('checked_in_at')
             ->whereNull('checked_out_at')
-            ->get();
-
-        // Get waiters for the Pilih Waiter dropdown
-        $waiters = \App\Models\User::role('Waiter/Server')
-            ->with('profile')
             ->get();
 
         // Get tiers for discount calculation (highest level first)
@@ -111,7 +106,7 @@ class PosController extends Controller
         // Get current counter location from session
         $currentCounter = session()->get('pos_counter_location');
 
-        return view('pos.index', compact('products', 'cartItems', 'cartTotal', 'tableSessions', 'waiters', 'tiers', 'printerLocations', 'currentCounter'));
+        return view('pos.index', compact('products', 'cartItems', 'cartTotal', 'tableSessions', 'tiers', 'printerLocations', 'currentCounter'));
     }
 
     /**
@@ -302,8 +297,6 @@ class PosController extends Controller
             'customer_type' => 'required|in:booking,walk-in',
             'customer_user_id' => 'required|exists:users,id',
             'table_id' => 'nullable|exists:tables,id',
-            'waiter_id' => 'nullable|exists:users,id',
-            'payment_method' => 'nullable|in:cash,kredit,debit',
             'discount_percentage' => 'nullable|integer|min:0|max:100',
         ]);
 
@@ -342,7 +335,6 @@ class PosController extends Controller
                 );
 
                 $discountPercentage = (int) ($validated['discount_percentage'] ?? 0);
-                $paymentNotes = isset($validated['payment_method']) ? 'Payment: '.strtoupper($validated['payment_method']) : null;
 
                 // Create Order
                 $order = Order::create([
@@ -354,7 +346,7 @@ class PosController extends Controller
                     'discount_amount' => 0,
                     'total' => 0,
                     'ordered_at' => now(),
-                    'notes' => $paymentNotes,
+                    'notes' => null,
                 ]);
 
                 $itemsTotal = 0;

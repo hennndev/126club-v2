@@ -1,0 +1,96 @@
+<x-waiter-mobile-layout>
+  <div class="p-5">
+
+    <!-- Header -->
+    <div class="mb-5">
+      <h1 class="text-2xl font-bold">Active Tables</h1>
+      <p class="text-slate-700 text-sm mt-0.5">{{ $sessions->count() }} meja aktif saat ini</p>
+    </div>
+
+    <!-- Area Filter -->
+    @if ($areas->count() > 1)
+      <div class="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+        <a href="{{ route('waiter.active-tables') }}"
+           class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition {{ !request('area_id') ? 'bg-teal-500 text-white' : 'bg-white text-slate-600 border border-slate-200' }}">
+          Semua
+        </a>
+        @foreach ($areas as $area)
+          <a href="{{ route('waiter.active-tables', ['area_id' => $area->id]) }}"
+             class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap {{ request('area_id') == $area->id ? 'bg-teal-500 text-white' : 'bg-white text-slate-600 border border-slate-200' }}">
+            {{ $area->name }}
+          </a>
+        @endforeach
+      </div>
+    @endif
+
+    @if ($sessions->isEmpty())
+      <div class="bg-white rounded-2xl p-10 text-center shadow-sm border border-slate-100">
+        <svg class="w-12 h-12 mx-auto mb-3 text-slate-600"
+             fill="none"
+             stroke="currentColor"
+             viewBox="0 0 24 24">
+          <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <p class="text-slate-700 font-medium">Tidak ada meja aktif</p>
+        <p class="text-slate-600 text-sm mt-1">Semua meja sedang kosong</p>
+      </div>
+    @else
+      <div class="space-y-3">
+        @foreach ($sessions as $session)
+          @php
+            $checkedInAt = $session->checked_in_at ? \Carbon\Carbon::parse($session->checked_in_at)->setTimezone('Asia/Jakarta') : null;
+            $duration = $checkedInAt ? $checkedInAt->diffForHumans(now(), \Carbon\CarbonInterface::DIFF_ABSOLUTE) : '—';
+          @endphp
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+            <div class="flex items-start justify-between mb-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-lg text-slate-900">Meja {{ $session->table?->table_number ?? '?' }}</span>
+                  <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Aktif</span>
+                </div>
+                <p class="text-slate-700 text-xs mt-0.5">{{ $session->table?->area?->name ?? '—' }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-slate-600">Durasi</p>
+                <p class="text-sm font-semibold text-slate-900">{{ $duration }}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-slate-600"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <p class="font-medium text-sm text-slate-900">{{ $session->customer?->name ?? 'Tamu' }}</p>
+                <p class="text-slate-700 text-xs">
+                  Check-in {{ $checkedInAt ? $checkedInAt->format('H:i') : '—' }}
+                </p>
+              </div>
+            </div>
+
+            @if ($session->billing)
+              <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                <span class="text-slate-700 text-sm">Total Tagihan</span>
+                <span class="font-bold text-slate-900">
+                  Rp {{ number_format($session->billing->grand_total, 0, ',', '.') }}
+                </span>
+              </div>
+            @endif
+          </div>
+        @endforeach
+      </div>
+    @endif
+
+  </div>
+</x-waiter-mobile-layout>

@@ -151,7 +151,7 @@
           </div>
 
           <!-- Stat Cards -->
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div class="bg-blue-600 rounded-xl p-5 text-white">
               <div class="flex items-center gap-2 mb-3">
                 <svg class="w-5 h-5 opacity-80"
@@ -164,8 +164,26 @@
                         d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p class="text-sm text-blue-200 mb-1">Total Penjualan</p>
-              <p class="text-2xl font-bold">Rp {{ number_format($stats['totalSales'], 0, ',', '.') }}</p>
+              <p class="text-sm text-blue-200 mb-1">Total Revenue Sesi</p>
+              <p class="text-2xl font-bold">Rp {{ number_format($stats['sessionRevenue'], 0, ',', '.') }}</p>
+              <p class="text-xs text-blue-300 mt-1">Termasuk min. charge</p>
+            </div>
+
+            <div class="bg-teal-600 rounded-xl p-5 text-white">
+              <div class="flex items-center gap-2 mb-3">
+                <svg class="w-5 h-5 opacity-80"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <p class="text-sm text-teal-200 mb-1">Customer Ditangani</p>
+              <p class="text-2xl font-bold">{{ $stats['customersHandled'] }}</p>
+              <p class="text-xs text-teal-300 mt-1">{{ $stats['completedSessions'] }} selesai</p>
             </div>
 
             <div class="bg-purple-600 rounded-xl p-5 text-white">
@@ -180,8 +198,9 @@
                         d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-              <p class="text-sm text-purple-200 mb-1">Total Transaksi</p>
+              <p class="text-sm text-purple-200 mb-1">Total Order</p>
               <p class="text-2xl font-bold">{{ number_format($stats['totalTransactions']) }}</p>
+              <p class="text-xs text-purple-300 mt-1">Rp {{ number_format($stats['totalOrderRevenue'], 0, ',', '.') }}</p>
             </div>
 
             <div class="bg-amber-500 rounded-xl p-5 text-white">
@@ -196,8 +215,39 @@
                         d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
               </div>
-              <p class="text-sm text-amber-100 mb-1">Rata-rata / Transaksi</p>
-              <p class="text-2xl font-bold">Rp {{ number_format($stats['avgPerTransaction'], 0, ',', '.') }}</p>
+              <p class="text-sm text-amber-100 mb-1">Rata-rata / Customer</p>
+              @php
+                $avgPerCustomer = $stats['customersHandled'] > 0 ? $stats['sessionRevenue'] / $stats['customersHandled'] : 0;
+              @endphp
+              <p class="text-2xl font-bold">Rp {{ number_format($avgPerCustomer, 0, ',', '.') }}</p>
+            </div>
+
+            <div class="bg-indigo-600 rounded-xl p-5 text-white">
+              <div class="flex items-center gap-2 mb-3">
+                <svg class="w-5 h-5 opacity-80"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p class="text-sm text-indigo-200 mb-1">Avg Durasi Sesi</p>
+              @php
+                $avgH = (int) floor($stats['avgDurationMinutes'] / 60);
+                $avgM = $stats['avgDurationMinutes'] % 60;
+              @endphp
+              <p class="text-2xl font-bold">
+                @if ($stats['avgDurationMinutes'] === 0)
+                  —
+                @elseif ($avgH > 0)
+                  {{ $avgH }}j {{ $avgM }}m
+                @else
+                  {{ $avgM }}m
+                @endif
+              </p>
             </div>
 
             <div class="bg-green-600 rounded-xl p-5 text-white">
@@ -266,7 +316,7 @@
               @endif
             </div>
 
-            <!-- Transaksi Terakhir -->
+            <!-- Sesi Terakhir Ditangani -->
             <div class="bg-white border border-slate-200 rounded-xl p-5">
               <div class="flex items-center gap-2 mb-4">
                 <svg class="w-4 h-4 text-blue-500"
@@ -278,11 +328,11 @@
                         stroke-width="2"
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h3 class="font-bold text-slate-800">Transaksi Terakhir</h3>
+                <h3 class="font-bold text-slate-800">Sesi Terakhir Ditangani</h3>
               </div>
-              <p class="text-xs text-slate-500 mb-4">10 transaksi terbaru</p>
+              <p class="text-xs text-slate-500 mb-4">10 sesi terbaru</p>
 
-              @if ($recentOrders->isEmpty())
+              @if ($recentSessions->isEmpty())
                 <div class="flex flex-col items-center justify-center py-12 text-slate-400">
                   <svg class="w-12 h-12 mb-3 opacity-30"
                        fill="none"
@@ -293,25 +343,49 @@
                           stroke-width="1.5"
                           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  <p class="text-sm">Belum ada transaksi</p>
+                  <p class="text-sm">Belum ada sesi</p>
                 </div>
               @else
                 <div class="space-y-2">
-                  @foreach ($recentOrders as $order)
+                  @foreach ($recentSessions as $sess)
+                    @php
+                      $sessDuration = $sess->checked_in_at && $sess->checked_out_at ? abs(\Carbon\Carbon::parse($sess->checked_out_at)->diffInMinutes(\Carbon\Carbon::parse($sess->checked_in_at))) : null;
+                      $sessDurationStr = $sessDuration !== null ? ($sessDuration >= 60 ? floor($sessDuration / 60) . 'j ' . $sessDuration % 60 . 'm' : $sessDuration . 'm') : null;
+
+                      // Use finalized grand_total for paid, else compute live from orders_total
+                      if ($sess->billing_status === 'paid' && $sess->grand_total) {
+                          $displayTotal = (float) $sess->grand_total;
+                      } elseif ($sess->orders_total !== null) {
+                          $ot = (float) $sess->orders_total;
+                          $displayTotal = $ot + $ot * ((float) ($sess->tax_percentage ?? 0) / 100) - (float) ($sess->discount_amount ?? 0);
+                      } else {
+                          $displayTotal = null;
+                      }
+                    @endphp
                     <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
                       <div>
-                        <p class="text-sm font-medium text-slate-800">{{ $order->order_number }}</p>
+                        <p class="text-sm font-medium text-slate-800">{{ $sess->customer_name ?? 'Tamu' }}</p>
                         <p class="text-xs text-slate-500">
-                          Meja {{ $order->table_number }} ·
-                          {{ \Carbon\Carbon::parse($order->created_at)->format('H:i') }}
+                          Meja {{ $sess->table_number }}
+                          · {{ \Carbon\Carbon::parse($sess->checked_in_at)->setTimezone('Asia/Jakarta')->format('d M, H:i') }}
+                          @if ($sessDurationStr)
+                            · {{ $sessDurationStr }}
+                          @endif
                         </p>
                       </div>
                       <div class="text-right">
-                        <p class="text-sm font-semibold text-slate-800">Rp {{ number_format($order->total, 0, ',', '.') }}</p>
-                        <span class="text-xs px-1.5 py-0.5 rounded-full
-                          {{ $order->status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700' }}">
-                          {{ ucfirst($order->status) }}
-                        </span>
+                        <p class="text-sm font-semibold text-slate-800">
+                          {{ $displayTotal !== null ? 'Rp ' . number_format($displayTotal, 0, ',', '.') : '—' }}
+                        </p>
+                        @php
+                          $statusMap = [
+                              'active' => ['bg-blue-100 text-blue-700', 'Aktif'],
+                              'completed' => ['bg-green-100 text-green-700', 'Selesai'],
+                              'pending' => ['bg-yellow-100 text-yellow-700', 'Pending'],
+                          ];
+                          [$badgeCls, $badgeLabel] = $statusMap[$sess->status] ?? ['bg-gray-100 text-gray-600', ucfirst($sess->status)];
+                        @endphp
+                        <span class="text-xs px-1.5 py-0.5 rounded-full {{ $badgeCls }}">{{ $badgeLabel }}</span>
                       </div>
                     </div>
                   @endforeach
@@ -354,9 +428,10 @@
                   <tr>
                     <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-8">#</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Waiter</th>
-                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Transaksi</th>
-                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Rata-rata / Transaksi</th>
-                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Penjualan</th>
+                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
+                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Order</th>
+                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg / Customer</th>
+                    <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Revenue Sesi</th>
                     <th class="px-5 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Detail</th>
                   </tr>
                 </thead>
@@ -384,9 +459,10 @@
                           </div>
                         </div>
                       </td>
-                      <td class="px-5 py-4 text-right text-slate-700 font-medium">{{ number_format($ws->totalTransactions) }}</td>
-                      <td class="px-5 py-4 text-right text-slate-700">Rp {{ number_format($ws->avgPerTransaction, 0, ',', '.') }}</td>
-                      <td class="px-5 py-4 text-right font-semibold text-slate-800">Rp {{ number_format($ws->totalSales, 0, ',', '.') }}</td>
+                      <td class="px-5 py-4 text-right text-slate-700 font-medium">{{ number_format($ws->customersHandled) }}</td>
+                      <td class="px-5 py-4 text-right text-slate-700">{{ number_format($ws->totalTransactions) }}</td>
+                      <td class="px-5 py-4 text-right text-slate-700">Rp {{ number_format($ws->avgPerCustomer, 0, ',', '.') }}</td>
+                      <td class="px-5 py-4 text-right font-semibold text-slate-800">Rp {{ number_format($ws->sessionRevenue, 0, ',', '.') }}</td>
                       <td class="px-5 py-4 text-center">
                         <a href="{{ route('admin.waiter-performance.index', ['mode' => 'individual', 'period' => $period, 'waiter_id' => $ws->user->id]) }}"
                            class="text-xs text-blue-600 hover:text-blue-800 font-medium">

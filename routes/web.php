@@ -38,6 +38,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/redirect-after-login', function () {
         $user = Auth::user();
         if ($user->type === 'internal') {
+            // Waiter/Server role goes to the mobile waiter app
+            if ($user->hasRole('Waiter/Server')) {
+                return redirect()->route('waiter.scanner');
+            }
+
             // If static API token is configured, no OAuth flow needed
             if (config('accurate.api_token')) {
                 return redirect()->route('admin.dashboard');
@@ -54,6 +59,11 @@ Route::middleware('auth')->group(function () {
     })->name('login.redirect');
 
     require __DIR__.'/database.php';
+
+    // Waiter Mobile App
+    Route::prefix('waiter')->name('waiter.')->middleware(['database_selected', 'ensure_waiter'])->group(function () {
+        require __DIR__.'/waiter.php';
+    });
 
     Route::prefix('admin')->middleware('database_selected')->name('admin.')->group(function () {
         Route::get('/dashboard', function () {

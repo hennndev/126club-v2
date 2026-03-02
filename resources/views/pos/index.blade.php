@@ -480,6 +480,7 @@
                     'ordersTotal' => $ordersTotal,
                     'tierName' => $tierName,
                     'discountPercentage' => $tierDiscount,
+                    'waiterName' => $session->waiter?->profile?->name ?? ($session->waiter?->name ?? null),
                 ];
               @endphp
               <button type="button"
@@ -575,74 +576,68 @@
             </div>
           </div>
 
-          <!-- Minimum Charge -->
-          <div x-show="checkoutForm.minimumCharge > 0"
-               style="display: none;">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-semibold text-gray-700">Minimum Charge</span>
-              <span class="text-sm font-bold text-gray-900"
-                    x-text="formatCurrency(checkoutForm.minimumCharge)"></span>
-            </div>
-            <div class="w-full bg-gray-100 rounded-full h-2 mb-1.5">
-              <div class="bg-orange-400 h-2 rounded-full transition-all"
-                   :style="'width: ' + Math.min(checkoutForm.ordersTotal / checkoutForm.minimumCharge * 100, 100) + '%'"></div>
-            </div>
-            <p x-show="checkoutForm.ordersTotal < checkoutForm.minimumCharge"
-               class="text-xs text-orange-500 font-medium"
-               x-text="'Kurang ' + formatCurrency(checkoutForm.minimumCharge - checkoutForm.ordersTotal)"></p>
+          <!-- Waiter Info -->
+          <div x-show="checkoutForm.waiterName"
+               style="display: none;"
+               class="flex items-center gap-2.5 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+            <svg class="w-4 h-4 text-indigo-400 flex-shrink-0"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span class="text-sm text-indigo-700 font-medium"
+                  x-text="'Waiter: ' + checkoutForm.waiterName"></span>
           </div>
-
-          <!-- Pilih Waiter -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Pilih Waiter</label>
-            <select x-model="checkoutForm.waiter_id"
-                    class="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-              <option value="">— Pilih Waiter —</option>
-              @foreach ($waiters as $waiter)
-                <option value="{{ $waiter->id }}">{{ $waiter->name }}</option>
-              @endforeach
-            </select>
-          </div>
-
-          <!-- Metode Pembayaran -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Metode Pembayaran</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button type="button"
-                      @click="checkoutForm.payment_method = 'cash'"
-                      :class="checkoutForm.payment_method === 'cash' ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300'"
-                      class="p-3 border-2 rounded-xl text-center transition">
-                <div class="text-xl mb-1">💵</div>
-                <span class="text-xs font-semibold text-gray-700">Cash</span>
-              </button>
-              <button type="button"
-                      disabled
-                      class="p-3 border-2 border-gray-100 bg-gray-50 rounded-xl text-center opacity-40 cursor-not-allowed">
-                <div class="text-xl mb-1">💳</div>
-                <span class="text-xs font-semibold text-gray-400">Kredit</span>
-              </button>
-              <button type="button"
-                      disabled
-                      class="p-3 border-2 border-gray-100 bg-gray-50 rounded-xl text-center opacity-40 cursor-not-allowed">
-                <div class="text-xl mb-1">🏦</div>
-                <span class="text-xs font-semibold text-gray-400">Debit</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Uang Diterima (cash only) -->
-          <div x-show="checkoutForm.payment_method === 'cash'"
-               style="display: none;">
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Uang Diterima</label>
-            <input type="number"
-                   x-model="checkoutForm.cash_received"
-                   placeholder="Masukkan jumlah uang diterima"
-                   class="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <div x-show="!checkoutForm.waiterName"
+               style="display: none;"
+               class="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+            <svg class="w-4 h-4 text-amber-400 flex-shrink-0"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z" />
+            </svg>
+            <span class="text-sm text-amber-700 font-medium">Waiter belum di-assign untuk sesi ini</span>
           </div>
 
           <!-- Summary Card -->
           <div class="bg-gray-900 rounded-2xl p-4 space-y-2.5">
-            <div class="flex justify-between text-sm text-gray-300">
+            <!-- Minimum Charge row -->
+            <div x-show="checkoutForm.minimumCharge > 0"
+                 style="display: none;"
+                 class="flex justify-between text-sm text-gray-300">
+              <span>Min. Charge</span>
+              <span x-text="formatCurrency(checkoutForm.minimumCharge)"></span>
+            </div>
+            <!-- Min charge progress bar -->
+            <div x-show="checkoutForm.minimumCharge > 0"
+                 style="display: none;"
+                 class="space-y-1">
+              <div class="w-full bg-gray-700 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full transition-all"
+                     :class="checkoutForm.ordersTotal >= checkoutForm.minimumCharge ? 'bg-green-400' : 'bg-orange-400'"
+                     :style="'width: ' + Math.min(cartTotal / checkoutForm.minimumCharge * 100, 100) + '%'"></div>
+              </div>
+              <p x-show="cartTotal < checkoutForm.minimumCharge"
+                 class="text-xs text-orange-400 font-medium"
+                 x-text="'Kurang ' + formatCurrency(checkoutForm.minimumCharge - cartTotal) + ' dari min. charge'"></p>
+            </div>
+            <div x-show="checkoutForm.minimumCharge > 0"
+                 style="display: none;"
+                 class="border-t border-gray-700 pt-1 flex justify-between text-sm text-gray-300">
+              <span>Orders</span>
+              <span x-text="formatCurrency(cartTotal)"></span>
+            </div>
+            <div x-show="checkoutForm.minimumCharge === 0"
+                 style="display: none;"
+                 class="flex justify-between text-sm text-gray-300">
               <span>Subtotal</span>
               <span x-text="formatCurrency(cartTotal)"></span>
             </div>
@@ -653,7 +648,7 @@
               <span x-text="'-' + formatCurrency(discountAmount())"></span>
             </div>
             <div class="border-t border-gray-700 pt-2.5 flex justify-between font-bold text-white">
-              <span class="text-base">Total Pembayaran</span>
+              <span class="text-base">Total Tagihan Order</span>
               <span class="text-base"
                     x-text="formatCurrency(finalTotal())"></span>
             </div>
@@ -671,7 +666,7 @@
               Batal
             </button>
             <button type="submit"
-                    :disabled="isProcessing || !checkoutForm.payment_method"
+                    :disabled="isProcessing"
                     class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               <svg x-show="isProcessing"
                    class="w-4 h-4 animate-spin"
@@ -1048,9 +1043,7 @@
             customerPhone: '',
             table_id: '',
             table_display: '',
-            waiter_id: '',
-            payment_method: 'cash',
-            cash_received: '',
+            waiterName: '',
             minimumCharge: 0,
             ordersTotal: 0,
             tierName: '',
@@ -1254,7 +1247,7 @@
             this.checkoutForm.ordersTotal = data.ordersTotal;
             this.checkoutForm.tierName = data.tierName || '';
             this.checkoutForm.discountPercentage = data.discountPercentage || 0;
-            this.checkoutForm.payment_method = 'cash';
+            this.checkoutForm.waiterName = data.waiterName || '';
             this.showCustomerTypeModal = false;
             this.bookingStep = 'type';
             this.showCheckoutModal = true;
@@ -1324,9 +1317,7 @@
                   customerPhone: '',
                   table_id: '',
                   table_display: '',
-                  waiter_id: '',
-                  payment_method: 'cash',
-                  cash_received: '',
+                  waiterName: '',
                   minimumCharge: 0,
                   ordersTotal: 0,
                   tierName: '',

@@ -14,6 +14,7 @@ class TableSession extends Model
         'table_reservation_id',
         'table_id',
         'customer_id',
+        'waiter_id',
         'session_code',
         'check_in_qr_code',
         'check_in_qr_expires_at',
@@ -44,6 +45,11 @@ class TableSession extends Model
         return $this->belongsTo(User::class, 'customer_id');
     }
 
+    public function waiter()
+    {
+        return $this->belongsTo(User::class, 'waiter_id');
+    }
+
     public function billing()
     {
         return $this->belongsTo(Billing::class);
@@ -61,8 +67,8 @@ class TableSession extends Model
 
     public function isQRValid()
     {
-        return $this->check_in_qr_code 
-            && $this->check_in_qr_expires_at 
+        return $this->check_in_qr_code
+            && $this->check_in_qr_expires_at
             && $this->check_in_qr_expires_at->isFuture();
     }
 }

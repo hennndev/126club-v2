@@ -60,7 +60,7 @@
       <input type="hidden"
              name="status"
              id="status"
-             value="confirmed">
+             value="pending">
 
       <!-- Meja yang Dipilih -->
       <div>
@@ -74,7 +74,7 @@
              class="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
           @foreach ($tables as $table)
             @php
-              $isOccupied = $todayBookedTableIds->contains($table->id) || $todayCheckedInTableIds->contains($table->id);
+              $isOccupied = in_array($table->status, ['reserved', 'occupied']);
             @endphp
             <button type="button"
                     @if (!$isOccupied) @click="selectTable({{ json_encode(['id' => $table->id, 'table_number' => $table->table_number, 'capacity' => $table->capacity, 'minimum_charge' => $table->minimum_charge, 'area_name' => $table->area->name ?? '']) }})" @endif

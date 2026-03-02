@@ -48,6 +48,15 @@ class TableReservationController extends Controller
 
         if ($tab === 'active') {
             $query->whereIn('status', ['confirmed', 'checked_in']);
+        } elseif ($tab === 'pending') {
+            $query->where('status', 'pending');
+
+            if ($request->filled('date_from')) {
+                $query->where('reservation_date', '>=', $request->date_from);
+            }
+            if ($request->filled('date_to')) {
+                $query->where('reservation_date', '<=', $request->date_to);
+            }
         } elseif ($tab === 'history') {
             $query->whereIn('status', ['completed', 'cancelled', 'rejected']);
 
@@ -70,31 +79,53 @@ class TableReservationController extends Controller
         $customers = User::whereHas('customerUser')->with('profile')->orderBy('name')->get();
         $areas = \App\Models\Area::where('is_active', true)->orderBy('sort_order')->get();
 
-        $today = now()->toDateString();
-        $todayBookedTableIds = TableReservation::whereIn('status', ['confirmed'])
-            ->where('reservation_date', $today)
-            ->pluck('table_id')
-            ->unique();
-        $todayCheckedInTableIds = TableReservation::where('status', 'checked_in')
-            ->where('reservation_date', $today)
-            ->pluck('table_id')
-            ->unique();
+        // Derive table status counts from the tables themselves (consistent with updateStatus logic)
+        $availableTablesCount = $tables->where('status', 'available')->count();
+        $bookedTablesCount = $tables->where('status', 'reserved')->count();
+        $checkedInTablesCount = $tables->where('status', 'occupied')->count();
 
-        $availableTablesCount = $tables->count() - $todayBookedTableIds->count() - $todayCheckedInTableIds->count();
-        $bookedTablesCount = $todayBookedTableIds->count();
-        $checkedInTablesCount = $todayCheckedInTableIds->count();
-
-        $todayActiveBookingsByTable = TableReservation::with(['customer.profile', 'customer.customerUser', 'tableSession.billing'])
+        // Earliest upcoming confirmed/checked-in booking per table (today or future)
+        $activeBookingsByTable = TableReservation::with(['customer.profile', 'customer.customerUser', 'tableSession.billing'])
             ->whereIn('status', ['confirmed', 'checked_in'])
-            ->where('reservation_date', $today)
+            ->where('reservation_date', '>=', now()->toDateString())
             ->get()
+            ->sortBy('reservation_date')
+            ->unique('table_id')
             ->keyBy('table_id');
+
+        $activeSessions = TableSession::with([
+            'table.area',
+            'reservation.customer.profile',
+            'reservation.customer.customerUser',
+            'billing',
+            'waiter.profile',
+            'orders.items',
+        ])
+            ->where('status', 'active')
+            ->orderBy('checked_in_at')
+            ->get();
 
         $todayPendingBookings = TableReservation::with(['table.area', 'customer.profile', 'customer.customerUser'])
             ->where('status', 'pending')
             ->orderBy('reservation_date')
             ->orderBy('reservation_time')
             ->get();
+
+        // Pending tab: identify competing bookings (same table + date, >1 pending)
+        $conflictingPendingKeys = TableReservation::where('status', 'pending')
+            ->selectRaw('table_id, reservation_date, COUNT(*) as cnt')
+            ->groupBy('table_id', 'reservation_date')
+            ->having('cnt', '>', 1)
+            ->get()
+            ->map(fn ($r) => $r->table_id.'_'.($r->reservation_date instanceof \Carbon\Carbon ? $r->reservation_date->toDateString() : $r->reservation_date))
+            ->toArray();
+
+        // Pending tab: slots already taken by a confirmed/checked-in booking
+        $blockedPendingKeys = TableReservation::whereIn('status', ['confirmed', 'checked_in'])
+            ->selectRaw('DISTINCT table_id, reservation_date')
+            ->get()
+            ->map(fn ($r) => $r->table_id.'_'.($r->reservation_date instanceof \Carbon\Carbon ? $r->reservation_date->toDateString() : $r->reservation_date))
+            ->toArray();
 
         // History stats
         $historyTotalCount = TableReservation::whereIn('status', ['completed', 'cancelled', 'rejected'])->count();
@@ -108,6 +139,11 @@ class TableReservationController extends Controller
             ? $historyTotalRevenue / $historyCompletedCount
             : 0;
 
+        $waiters = User::whereHas('roles', fn ($q) => $q->where('name', 'Waiter/Server'))
+            ->with('profile')
+            ->orderBy('name')
+            ->get();
+
         return view('bookings.index', compact(
             'bookings',
             'totalBookings',
@@ -118,10 +154,12 @@ class TableReservationController extends Controller
             'customers',
             'areas',
             'tab',
-            'todayBookedTableIds',
-            'todayCheckedInTableIds',
-            'todayActiveBookingsByTable',
+            'activeBookingsByTable',
+            'activeSessions',
+            'waiters',
             'todayPendingBookings',
+            'conflictingPendingKeys',
+            'blockedPendingKeys',
             'availableTablesCount',
             'bookedTablesCount',
             'checkedInTablesCount',
@@ -139,41 +177,21 @@ class TableReservationController extends Controller
             'customer_id' => 'required|exists:users,id',
             'reservation_date' => 'required|date',
             'reservation_time' => 'required',
-            'status' => 'required|in:pending,confirmed,checked_in,completed,cancelled,rejected',
             'note' => 'nullable|string|max:1000',
         ]);
 
+        // New bookings always start as pending — admin must confirm explicitly
+        $validated['status'] = 'pending';
+
         try {
-            // Check if table is already reserved by another customer
-            if (in_array($validated['status'], ['confirmed', 'checked_in'])) {
-                $existingBooking = TableReservation::where('table_id', $validated['table_id'])
-                    ->whereIn('status', ['confirmed', 'checked_in'])
-                    ->where('reservation_date', $validated['reservation_date'])
-                    ->first();
-
-                if ($existingBooking) {
-                    $table = Tabel::with('area')->find($validated['table_id']);
-                    $customerName = $existingBooking->customer->name ?? 'Customer lain';
-
-                    return back()->withErrors([
-                        'table_id' => "Meja {$table->area->name} - Nomor {$table->table_number} sudah direservasi oleh {$customerName} pada tanggal yang sama.",
-                    ])->withInput();
-                }
-            }
-
             // Generate unique booking code
             $lastBooking = TableReservation::latest('id')->first();
             $validated['booking_code'] = $lastBooking ? $lastBooking->booking_code + 1 : 1;
 
-            $booking = TableReservation::create($validated);
-
-            // Update table status based on booking status
-            if ($validated['status'] === 'confirmed' || $validated['status'] === 'checked_in') {
-                Tabel::where('id', $validated['table_id'])->update(['status' => 'reserved']);
-            }
+            TableReservation::create($validated);
 
             return redirect()->route('admin.bookings.index')
-                ->with('success', 'Booking berhasil ditambahkan');
+                ->with('success', 'Booking berhasil ditambahkan. Status: Pending — silakan konfirmasi setelah diverifikasi.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Gagal menambahkan booking: '.$e->getMessage()])
                 ->withInput();
@@ -192,9 +210,8 @@ class TableReservationController extends Controller
         ]);
 
         try {
-            // Check if trying to change from pending to confirmed/checked_in
-            if ($booking->status === 'pending' && in_array($validated['status'], ['confirmed', 'checked_in'])) {
-                // Check if table is already reserved by another customer
+            // Check for conflicts whenever confirming or checking in
+            if (in_array($validated['status'], ['confirmed', 'checked_in'])) {
                 $existingBooking = TableReservation::where('table_id', $validated['table_id'])
                     ->whereIn('status', ['confirmed', 'checked_in'])
                     ->where('reservation_date', $validated['reservation_date'])
@@ -222,8 +239,10 @@ class TableReservationController extends Controller
             }
 
             // Update new table status based on booking status
-            if ($validated['status'] === 'confirmed' || $validated['status'] === 'checked_in') {
+            if ($validated['status'] === 'confirmed') {
                 Tabel::where('id', $validated['table_id'])->update(['status' => 'reserved']);
+            } elseif ($validated['status'] === 'checked_in') {
+                Tabel::where('id', $validated['table_id'])->update(['status' => 'occupied']);
             } elseif ($validated['status'] === 'completed' || $validated['status'] === 'cancelled') {
                 Tabel::where('id', $validated['table_id'])->update(['status' => 'available']);
             }
@@ -255,33 +274,34 @@ class TableReservationController extends Controller
         ]);
 
         try {
-            // Check if trying to change from pending to confirmed/checked_in
-            if ($booking->status === 'pending' && in_array($validated['status'], ['confirmed', 'checked_in'])) {
-                // Check if table is already reserved by another customer
-                $existingBooking = TableReservation::where('table_id', $booking->table_id)
-                    ->whereIn('status', ['confirmed', 'checked_in'])
-                    ->where('reservation_date', $booking->reservation_date)
-                    ->where('id', '!=', $booking->id)
-                    ->first();
-
-                if ($existingBooking) {
-                    $table = Tabel::with('area')->find($booking->table_id);
-                    $customerName = $existingBooking->customer->name ?? 'Customer lain';
-
-                    return back()->withErrors([
-                        'status' => "Tidak dapat mengkonfirmasi booking. Meja {$table->area->name} - Nomor {$table->table_number} sudah direservasi oleh {$customerName} pada tanggal yang sama. Silakan ubah status ke 'Cancelled' dan tambahkan catatan untuk customer.",
-                    ]);
-                }
-            }
-
             DB::transaction(function () use ($booking, $validated) {
+                // Check for conflicts inside the transaction with a row-level lock
+                // to prevent race conditions when multiple admins confirm simultaneously
+                if (in_array($validated['status'], ['confirmed', 'checked_in'])) {
+                    $existingBooking = TableReservation::where('table_id', $booking->table_id)
+                        ->whereIn('status', ['confirmed', 'checked_in'])
+                        ->where('reservation_date', $booking->reservation_date)
+                        ->where('id', '!=', $booking->id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($existingBooking) {
+                        $table = Tabel::with('area')->find($booking->table_id);
+                        $customerName = $existingBooking->customer->name ?? 'Customer lain';
+
+                        throw new \Exception("Tidak dapat mengkonfirmasi booking. Meja {$table->area->name} - Nomor {$table->table_number} sudah direservasi oleh {$customerName} pada tanggal yang sama.");
+                    }
+                }
+
                 $booking->update(['status' => $validated['status']]);
 
                 // Update table status based on booking status
                 $table = Tabel::find($booking->table_id);
                 if ($table) {
-                    if ($validated['status'] === 'confirmed' || $validated['status'] === 'checked_in') {
+                    if ($validated['status'] === 'confirmed') {
                         $table->update(['status' => 'reserved']);
+                    } elseif ($validated['status'] === 'checked_in') {
+                        $table->update(['status' => 'occupied']);
                     } elseif (in_array($validated['status'], ['completed', 'cancelled', 'rejected'])) {
                         $table->update(['status' => 'available']);
                     }
@@ -441,6 +461,27 @@ class TableReservationController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Gagal menutup billing: '.$e->getMessage()], 500);
         }
+    }
+
+    public function assignWaiter(Request $request, TableReservation $booking)
+    {
+        $validated = $request->validate([
+            'waiter_id' => 'nullable|exists:users,id',
+        ]);
+
+        $session = $booking->tableSession;
+
+        if (! $session) {
+            return back()->withErrors(['error' => 'Sesi aktif tidak ditemukan untuk booking ini.']);
+        }
+
+        $session->update(['waiter_id' => $validated['waiter_id'] ?? null]);
+
+        $waiterName = $validated['waiter_id']
+            ? (User::find($validated['waiter_id'])?->profile?->name ?? User::find($validated['waiter_id'])?->name ?? '-')
+            : 'tidak ada';
+
+        return back()->with('success', "Waiter berhasil di-assign: {$waiterName}.");
     }
 
     public function receipt(TableReservation $booking)
