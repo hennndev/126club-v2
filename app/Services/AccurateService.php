@@ -85,41 +85,48 @@ class AccurateService
         int $pageSize = 20
     ): Collection {
         try {
-            $params = [
+            $baseParams = [
                 'fields' => implode(',', $defaultFields),
                 'sort' => $sortBy,
-                'sp.page' => $request->get('page', 1),
-                'sp.pageSize' => $request->get('pageSize', $pageSize),
+                'sp.pageSize' => $pageSize,
             ];
 
             // Filter tanggal (opsional)
             if ($request->filled(['start_date', 'end_date'])) {
-                $params['filter.transDate.op'] = 'BETWEEN';
-                $params['filter.transDate.val[0]'] = $request->start_date;
-                $params['filter.transDate.val[1]'] = $request->end_date;
+                $baseParams['filter.transDate.op'] = 'BETWEEN';
+                $baseParams['filter.transDate.val[0]'] = $request->start_date;
+                $baseParams['filter.transDate.val[1]'] = $request->end_date;
             }
 
             // Filter pencarian (opsional)
             if ($request->filled('search')) {
-                $params['filter.keywords.op'] = 'CONTAIN';
-                $params['filter.keywords.val'] = $request->search;
+                $baseParams['filter.keywords.op'] = 'CONTAIN';
+                $baseParams['filter.keywords.val'] = $request->search;
             }
 
             // Filter berdasarkan item_type (untuk item/raw material)
             if ($request->filled('item_type')) {
-                $params['filter.itemType.op'] = 'EQUAL';
-                $params['filter.itemType.val'] = $request->item_type;
+                $baseParams['filter.itemType.op'] = 'EQUAL';
+                $baseParams['filter.itemType.val'] = $request->item_type;
             }
 
-            $response = $this->dataClient()->get("/api/{$endpoint}/list-stock.do", $params);
+            $allItems = collect();
+            $page = 1;
 
-            if ($response->failed()) {
-                Log::error("Gagal mengambil daftar {$endpoint} dari Accurate", ['response' => $response->json()]);
+            do {
+                $response = $this->dataClient()->get("/api/{$endpoint}/list-stock.do", array_merge($baseParams, ['sp.page' => $page]));
 
-                return collect([]);
-            }
+                if ($response->failed()) {
+                    Log::error("Gagal mengambil daftar {$endpoint} dari Accurate", ['page' => $page, 'response' => $response->json()]);
+                    break;
+                }
 
-            return collect($response->json()['d'] ?? []);
+                $items = collect($response->json()['d'] ?? []);
+                $allItems = $allItems->merge($items);
+                $page++;
+            } while ($items->count() >= $pageSize);
+
+            return $allItems;
         } catch (\Throwable $e) {
             Log::error("Exception saat mengambil daftar {$endpoint}", ['message' => $e->getMessage()]);
 
@@ -465,9 +472,9 @@ class AccurateService
     }
 
     // ===ITEMS SCOPED===
-    public function getItems(Request $request)
+    public function getItems(Request $request, array $fields = [])
     {
-        return $this->getList('item', $request, []);
+        return $this->getList('item', $request, $fields);
     }
 
     public function getStockItems(Request $request)

@@ -19,8 +19,12 @@
 
       <form id="deleteForm"
             method="POST">
-        @csrf
-        @method('DELETE')
+        <input type="hidden"
+               name="_token"
+               id="deleteFormToken">
+        <input type="hidden"
+               name="_method"
+               value="DELETE">
         <div class="flex gap-3">
           <button type="button"
                   onclick="closeDeleteModal()"

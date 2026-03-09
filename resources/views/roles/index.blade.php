@@ -250,15 +250,21 @@
 
   @push('scripts')
     <script>
+      const csrfMeta = () => document.querySelector('meta[name="csrf-token"]').content;
+
       // Search functionality
       document.getElementById('searchInput').addEventListener('input', function(e) {
         const searchTerm = e.target.value.toLowerCase();
         const rows = document.querySelectorAll('#tableBody tr');
-
         rows.forEach(row => {
           const text = row.textContent.toLowerCase();
           row.style.display = text.includes(searchTerm) ? '' : 'none';
         });
+      });
+
+      // Always inject a fresh CSRF token before submitting
+      document.getElementById('roleForm').addEventListener('submit', function() {
+        document.getElementById('roleFormToken').value = csrfMeta();
       });
 
       // Open modal for adding
@@ -303,6 +309,7 @@
       function deleteRole(role) {
         document.getElementById('deleteRoleName').textContent = role.name;
         document.getElementById('deleteForm').action = `/admin/roles/${role.id}`;
+        document.getElementById('deleteFormToken').value = csrfMeta();
         document.getElementById('deleteModal').classList.remove('hidden');
       }
 

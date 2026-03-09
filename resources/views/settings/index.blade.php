@@ -160,6 +160,27 @@
         </div>
       </a>
 
+      <!-- POS Category Settings -->
+      <a href="{{ route('admin.settings.pos-categories.index') }}"
+         class="flex items-start gap-4 p-5 bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all">
+        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <svg class="w-6 h-6 text-green-600"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-slate-800 mb-1">Kategori POS</h3>
+          <p class="text-sm text-slate-500 mb-3">Atur kategori mana yang tampil di POS dan arahnya (kitchen/bar/langsung)</p>
+          <span class="text-sm font-medium text-violet-600 hover:text-violet-700">Lihat Detail →</span>
+        </div>
+      </a>
+
       <!-- Printer Management -->
       <a href="{{ route('admin.printers.index') }}"
          class="flex items-start gap-4 p-5 bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all">

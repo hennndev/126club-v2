@@ -8,6 +8,7 @@ class TableReservation extends Model
 {
     protected $fillable = [
         'booking_code',
+        'booking_name',
         'table_id',
         'customer_id',
         'reservation_date',

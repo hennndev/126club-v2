@@ -46,10 +46,11 @@
              :style="`grid-template-columns: repeat(${gridCols}, minmax(0, 1fr))`">
           @forelse($products as $product)
             @php
-              $category = strtolower($product['category'] ?? 'drink');
-              $isFood = $category === 'food';
-              $gradientClass = $isFood ? 'from-orange-500 to-red-600' : 'from-blue-400 to-cyan-500';
-              $dotColor = $isFood ? 'bg-orange-400' : 'bg-blue-300';
+              $category = strtolower($product['category'] ?? '');
+              $prepLoc = $posSettings->get($category)?->preparation_location ?? 'bar';
+              $isKitchen = $prepLoc === 'kitchen';
+              $gradientClass = $isKitchen ? 'from-orange-500 to-red-600' : 'from-blue-400 to-cyan-500';
+              $dotColor = $isKitchen ? 'bg-orange-400' : 'bg-blue-300';
               $outOfStock = isset($product['type']) && $product['type'] === 'item' && ($product['stock'] ?? 0) <= 0;
               $unavailable = isset($product['type']) && $product['type'] === 'bom' && !($product['is_available'] ?? true);
               $disabled = $outOfStock || $unavailable;
@@ -65,7 +66,7 @@
                     <span class="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">Habis</span>
                   </div>
                 @endif
-                @if (!$isFood && isset($product['stock']))
+                @if (!$isKitchen && isset($product['stock']))
                   <div class="absolute bottom-2 left-2 z-10">
                     @if (($product['stock'] ?? 0) > 10)
                       <span class="px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded">Stock: {{ $product['stock'] }}</span>
@@ -77,7 +78,7 @@
                   </div>
                 @endif
                 <div class="h-28 flex items-center justify-center">
-                  @if ($isFood)
+                  @if ($isKitchen)
                     {{-- Food: plate with fork & knife --}}
                     <svg class="w-16 h-16 text-white/80"
                          fill="none"
@@ -120,7 +121,7 @@
                   <p class="text-xs text-gray-400 mt-0.5 capitalize">{{ ucfirst($product['category']) }}</p>
                 </div>
                 <div class="flex items-center justify-between mt-2">
-                  <span class="text-sm font-bold text-gray-900">Rp {{ number_format($product['price'] / 1000, 0, ',', '.') }}K</span>
+                  <span class="text-sm font-bold text-gray-900">Rp {{ number_format($product['price'], 0, ',', '.') }}</span>
                   <button type="button"
                           @click="addToCart('{{ $product['id'] }}')"
                           :disabled="isProcessing || {{ $disabled ? 'true' : 'false' }}"
@@ -392,7 +393,7 @@
                 {{ $tableSessions->count() }} Booking Aktif
               </span>
             </button>
-            <button @click="selectCustomerType('walk-in')"
+            <button @click="bookingStep = 'walkin-customer'; walkInSearch = ''; walkInFoundCustomers = []; walkInSelected = null; walkInCreateMode = false; walkInNewName = ''; walkInNewPhone = ''; walkInSelectedTable = null;"
                     class="p-5 border-2 border-gray-100 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition group text-center">
               <div class="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
                 <svg class="w-6 h-6 text-white"
@@ -407,8 +408,8 @@
               </div>
               <h4 class="font-bold text-gray-900 mb-1">Walk-in</h4>
               <p class="text-xs text-gray-500 mb-3">Pelanggan tanpa reservasi</p>
-              <span class="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full">
-                Coming Soon
+              <span class="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
+                Pilih Customer
               </span>
             </button>
           </div>
@@ -508,6 +509,160 @@
             @endforelse
           </div>
         </div>
+
+        <!-- Step: Walk-in Customer -->
+        <div x-show="bookingStep === 'walkin-customer'"
+             style="display: none;">
+          <div class="flex items-center justify-between px-6 pb-3">
+            <span class="font-semibold text-gray-900">Customer Walk-in</span>
+            <button @click="bookingStep = 'type'"
+                    class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition font-medium">
+              <svg class="w-4 h-4"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 19l-7-7 7-7" />
+              </svg>
+              Kembali
+            </button>
+          </div>
+          <div class="px-6 pb-6 space-y-3">
+            <!-- Selected customer chip -->
+            <div x-show="walkInSelected !== null"
+                 style="display:none;"
+                 class="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-xl">
+              <div>
+                <p class="font-semibold text-green-800 text-sm"
+                   x-text="walkInSelected?.name ?? ''"></p>
+                <p class="text-xs text-green-600"
+                   x-text="walkInSelected?.phone || 'Tidak ada nomor'"></p>
+              </div>
+              <button @click="walkInSelected = null; walkInSearch = ''"
+                      class="text-green-400 hover:text-green-700 transition">
+                <svg class="w-4 h-4"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Search input (when no selection and not create mode) -->
+            <div x-show="walkInSelected === null && !walkInCreateMode"
+                 style="display:none;"
+                 class="space-y-2">
+              <div class="relative">
+                <input type="text"
+                       x-model="walkInSearch"
+                       @input.debounce.300ms="searchWalkInCustomers()"
+                       placeholder="Cari nama atau nomor HP..."
+                       class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-400 focus:outline-none pr-10">
+                <svg x-show="walkInSearching"
+                     class="w-4 h-4 text-gray-400 absolute right-3 top-3 animate-spin"
+                     fill="none"
+                     viewBox="0 0 24 24">
+                  <circle class="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          stroke-width="4"></circle>
+                  <path class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </div>
+              <div x-show="walkInFoundCustomers.length > 0"
+                   class="border border-gray-100 rounded-xl overflow-hidden">
+                <template x-for="c in walkInFoundCustomers"
+                          :key="c.id">
+                  <button type="button"
+                          @click="selectWalkInCustomer(c)"
+                          class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition text-left">
+                    <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
+                      <span class="text-xs font-bold text-gray-600"
+                            x-text="c.name[0].toUpperCase()"></span>
+                    </div>
+                    <div>
+                      <p class="text-sm font-medium text-gray-900"
+                         x-text="c.name"></p>
+                      <p class="text-xs text-gray-400"
+                         x-text="c.phone || 'Tidak ada nomor'"></p>
+                    </div>
+                  </button>
+                </template>
+              </div>
+              <p x-show="walkInSearch.length >= 2 && walkInFoundCustomers.length === 0 && !walkInSearching"
+                 class="text-xs text-gray-400 text-center py-1">Customer tidak ditemukan.</p>
+              <button type="button"
+                      @click="walkInCreateMode = true; walkInNewName = walkInSearch"
+                      class="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 transition font-medium">
+                <svg class="w-4 h-4"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 4v16m8-8H4" />
+                </svg>
+                Buat Customer Baru
+              </button>
+            </div>
+
+            <!-- Create new customer form -->
+            <div x-show="walkInCreateMode"
+                 style="display:none;"
+                 class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Nama *</label>
+                <input type="text"
+                       x-model="walkInNewName"
+                       placeholder="Nama customer"
+                       class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">No. HP (opsional)</label>
+                <input type="tel"
+                       x-model="walkInNewPhone"
+                       placeholder="08xxxxxxxxxx"
+                       class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-400 focus:outline-none">
+              </div>
+              <div class="flex gap-2">
+                <button type="button"
+                        @click="walkInCreateMode = false"
+                        class="flex-1 py-2 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50 transition">
+                  Batal
+                </button>
+                <button type="button"
+                        @click="createWalkInCustomer()"
+                        :disabled="!walkInNewName.trim() || walkInCreating"
+                        class="flex-1 py-2 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition disabled:opacity-50">
+                  <span x-show="!walkInCreating">Buat Customer</span>
+                  <span x-show="walkInCreating">Membuat...</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Proceed button shown when customer is selected -->
+            <div x-show="walkInSelected !== null"
+                 style="display:none;">
+              <button type="button"
+                      @click="proceedWalkInCheckout()"
+                      class="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-700 transition">
+                Lanjut → Checkout
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -562,7 +717,8 @@
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-white font-bold text-base"
                       x-text="checkoutForm.customerName || 'Customer'"></span>
-                <span class="px-2 py-0.5 bg-white/20 text-white text-xs font-semibold rounded-full">Booking</span>
+                <span class="px-2 py-0.5 bg-white/20 text-white text-xs font-semibold rounded-full"
+                      x-text="checkoutForm.customer_type === 'walk-in' ? 'Walk-in' : 'Booking'"></span>
               </div>
               <p class="text-blue-100 text-sm mt-0.5"
                  x-text="checkoutForm.customerPhone || '-'"></p>
@@ -868,10 +1024,11 @@
           </div>
 
           <!-- Quick Nav Buttons -->
-          <div class="grid grid-cols-3 gap-2">
+          <div class="flex flex-wrap gap-2">
             <button type="button"
+                    x-show="receiptData?.items?.some(i => i.preparation_location === 'kitchen')"
                     @click="printCheckerAndNavigate('kitchen', kitchenUrl)"
-                    class="flex flex-col items-center gap-1.5 p-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl transition">
+                    class="flex flex-1 flex-col items-center gap-1.5 p-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl transition">
               <svg class="w-5 h-5 text-orange-500"
                    fill="none"
                    stroke="currentColor"
@@ -884,8 +1041,9 @@
               <span class="text-xs font-semibold text-orange-600">Kitchen</span>
             </button>
             <button type="button"
+                    x-show="receiptData?.items?.some(i => i.preparation_location === 'bar')"
                     @click="printCheckerAndNavigate('bar', barUrl)"
-                    class="flex flex-col items-center gap-1.5 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition">
+                    class="flex flex-1 flex-col items-center gap-1.5 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition">
               <svg class="w-5 h-5 text-blue-500"
                    fill="none"
                    stroke="currentColor"
@@ -898,7 +1056,7 @@
               <span class="text-xs font-semibold text-blue-600">Bar</span>
             </button>
             <a href="{{ route('admin.tables.index') }}"
-               class="flex flex-col items-center gap-1.5 p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl transition">
+               class="flex flex-1 flex-col items-center gap-1.5 p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl transition">
               <svg class="w-5 h-5 text-green-500"
                    fill="none"
                    stroke="currentColor"
@@ -1024,7 +1182,10 @@
         clearCart: "{{ route('admin.pos.clear-cart') }}",
         checkout: "{{ route('admin.pos.checkout') }}",
         verifyAuthCode: "{{ route('admin.settings.daily-auth-code.verify') }}",
+        walkInSearchCustomers: "{{ route('admin.pos.walk-in.search-customers') }}",
+        walkInCreateCustomer: "{{ route('admin.pos.walk-in.create-customer') }}",
       };
+      const posAvailableTables = @json($availableTables);
       const posInitialData = {
         cart: {!! json_encode($cartItems->values()) !!},
         cartTotal: {{ $cartTotal }},
@@ -1070,6 +1231,7 @@
           checkoutForm: {
             customer_type: '',
             customer_user_id: '',
+            walk_in_customer_id: '',
             customerName: '',
             customerInitial: '',
             customerPhone: '',
@@ -1085,6 +1247,19 @@
             discountPercentage: 0,
           },
           posWaiters: posWaiters,
+          availableTables: posAvailableTables,
+
+          // Walk-in state
+          walkInSearch: '',
+          walkInFoundCustomers: [],
+          walkInSearching: false,
+          walkInSearchTimeout: null,
+          walkInSelected: null,
+          walkInNewName: '',
+          walkInNewPhone: '',
+          walkInCreating: false,
+          walkInCreateMode: false,
+          walkInSelectedTable: null,
 
           init() {
             this.cart = posInitialData.cart;
@@ -1321,6 +1496,93 @@
             }
           },
 
+          async searchWalkInCustomers() {
+            if (this.walkInSearch.length < 2) {
+              this.walkInFoundCustomers = [];
+              return;
+            }
+            this.walkInSearching = true;
+            try {
+              const res = await fetch(posRoutes.walkInSearchCustomers + '?q=' + encodeURIComponent(this.walkInSearch), {
+                headers: {
+                  Accept: 'application/json'
+                },
+              });
+              const data = await res.json();
+              this.walkInFoundCustomers = data.customers ?? [];
+            } catch (e) {
+              this.walkInFoundCustomers = [];
+            } finally {
+              this.walkInSearching = false;
+            }
+          },
+
+          selectWalkInCustomer(c) {
+            this.walkInSelected = c;
+            this.walkInFoundCustomers = [];
+            this.walkInSearch = '';
+          },
+
+          async createWalkInCustomer() {
+            if (!this.walkInNewName.trim() || this.walkInCreating) {
+              return;
+            }
+            this.walkInCreating = true;
+            try {
+              const res = await fetch(posRoutes.walkInCreateCustomer, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                  Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                  name: this.walkInNewName,
+                  phone: this.walkInNewPhone
+                }),
+              });
+              const data = await res.json();
+              if (data.success) {
+                this.walkInSelected = data.customer;
+                this.walkInCreateMode = false;
+                this.walkInNewName = '';
+                this.walkInNewPhone = '';
+              } else {
+                this.showToastMessage(data.message || 'Gagal membuat customer', 'error');
+              }
+            } catch (e) {
+              this.showToastMessage('Terjadi kesalahan. Coba lagi.', 'error');
+            } finally {
+              this.walkInCreating = false;
+            }
+          },
+
+          selectWalkInTable(t) {
+            this.walkInSelectedTable = t;
+          },
+
+          proceedWalkInCheckout() {
+            if (!this.walkInSelected) {
+              return;
+            }
+            this.checkoutForm.customer_type = 'walk-in';
+            this.checkoutForm.walk_in_customer_id = this.walkInSelected.id;
+            this.checkoutForm.table_id = null;
+            this.checkoutForm.table_display = 'Walk-in';
+            this.checkoutForm.customerName = this.walkInSelected.name;
+            this.checkoutForm.customerInitial = this.walkInSelected.name[0].toUpperCase();
+            this.checkoutForm.customerPhone = this.walkInSelected.phone || '';
+            this.checkoutForm.minimumCharge = 0;
+            this.checkoutForm.ordersTotal = 0;
+            this.checkoutForm.tierName = '';
+            this.checkoutForm.discountPercentage = 0;
+            this.checkoutForm.waiterName = '';
+            this.checkoutForm.reservationId = null;
+            this.showCustomerTypeModal = false;
+            this.bookingStep = 'type';
+            this.showCheckoutModal = true;
+          },
+
           discountAmount() {
             return Math.round(this.cartTotal * (this.checkoutForm.discountPercentage / 100));
           },
@@ -1381,12 +1643,14 @@
                 this.checkoutForm = {
                   customer_type: '',
                   customer_user_id: '',
+                  walk_in_customer_id: '',
                   customerName: '',
                   customerInitial: '',
                   customerPhone: '',
                   table_id: '',
                   table_display: '',
                   waiterName: '',
+                  reservationId: null,
                   minimumCharge: 0,
                   ordersTotal: 0,
                   tierName: '',

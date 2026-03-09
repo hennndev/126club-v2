@@ -36,7 +36,7 @@ return [
     'sync_batch_size' => env('ACCURATE_SYNC_BATCH_SIZE', 100),
 
     // Timeout untuk request ke Accurate API (dalam detik)
-    'api_timeout' => env('ACCURATE_API_TIMEOUT', 30),
+    'api_timeout' => env('ACCURATE_API_TIMEOUT', 120),
 
     // Entities yang akan di-sync
     'sync_entities' => [

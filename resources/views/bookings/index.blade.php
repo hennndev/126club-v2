@@ -51,6 +51,7 @@
     @include('bookings._components.add-edit-modal')
     @include('bookings._components.delete-confirmation-modal')
     @include('bookings._components.status-update-modal')
+    @include('bookings._components.booking-info-modal')
     @include('bookings._components.close-billing-modal')
     @include('bookings._components.assign-waiter-modal')
     @include('bookings._components.order-history-modal')

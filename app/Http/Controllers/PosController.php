@@ -5,21 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\Area;
 use App\Models\BarOrder;
 use App\Models\BarOrderItem;
+use App\Models\Billing;
 use App\Models\BomRecipe;
+use App\Models\CustomerUser;
 use App\Models\InventoryItem;
 use App\Models\KitchenOrder;
 use App\Models\KitchenOrderItem;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\PosCategorySetting;
 use App\Models\Printer;
+use App\Models\Tabel;
 use App\Models\TableReservation;
 use App\Models\TableSession;
 use App\Models\Tier;
 use App\Models\User;
+use App\Models\UserProfile;
 use App\Services\PrinterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class PosController extends Controller
 {
@@ -29,14 +36,17 @@ class PosController extends Controller
 
     public function index(Request $request)
     {
-        // Get BOM recipes with category_type = 'food' or 'bar'
-        $bomQuery = BomRecipe::with('inventoryItem')
-            ->whereHas('inventoryItem', function ($q) {
-                $q->whereIn('category_type', ['food', 'bar']);
-            });
+        $posSettings = PosCategorySetting::allKeyed()->filter(fn ($s) => $s->show_in_pos);
 
-        // Get inventory items with category_type = 'beverage'
-        $inventoryQuery = InventoryItem::where('category_type', 'beverage');
+        $bomTypes = $posSettings->filter(fn ($s) => in_array($s->source, ['bom', 'both']))->keys()->values()->all();
+        $inventoryTypes = $posSettings->filter(fn ($s) => in_array($s->source, ['inventory', 'both']))->keys()->values()->all();
+
+        // Get BOM recipes for configured category types
+        $bomQuery = BomRecipe::with('inventoryItem')
+            ->whereHas('inventoryItem', fn ($q) => $q->whereIn('category_type', $bomTypes ?: ['__none__']));
+
+        // Get inventory items for configured category types
+        $inventoryQuery = InventoryItem::whereIn('category_type', $inventoryTypes ?: ['__none__']);
 
         // Search functionality
         if ($request->filled('search')) {
@@ -84,7 +94,7 @@ class PosController extends Controller
                 'name' => $item['name'],
                 'price' => $item['price'],
                 'quantity' => $item['quantity'],
-                'preparation_location' => $item['preparation_location'] ?? 'bar',
+                'preparation_location' => $item['preparation_location'] ?? 'direct',
             ];
         });
 
@@ -114,7 +124,93 @@ class PosController extends Controller
         // Get current counter location from session
         $currentCounter = session()->get('pos_counter_location');
 
-        return view('pos.index', compact('products', 'cartItems', 'cartTotal', 'tableSessions', 'tiers', 'waiters', 'printerLocations', 'currentCounter'));
+        // Tables without an active session (available for walk-in)
+        $activetableIds = TableSession::where('status', 'active')->pluck('table_id');
+        $availableTables = Tabel::with('area')
+            ->where('is_active', true)
+            ->whereNotIn('id', $activetableIds)
+            ->orderBy('table_number')
+            ->get()
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'table_number' => $t->table_number,
+                'area' => $t->area?->name ?? '',
+                'capacity' => $t->capacity,
+                'minimum_charge' => (float) ($t->minimum_charge ?? 0),
+            ]);
+
+        return view('pos.index', compact('products', 'cartItems', 'cartTotal', 'tableSessions', 'tiers', 'waiters', 'printerLocations', 'currentCounter', 'posSettings', 'availableTables'));
+    }
+
+    /**
+     * Walk-in: search existing customers by name or phone.
+     */
+    public function walkInSearchCustomers(Request $request): JsonResponse
+    {
+        $query = $request->get('q', '');
+
+        $customers = User::with(['profile', 'customerUser'])
+            ->whereHas('customerUser')
+            ->where(function ($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                    ->orWhereHas('profile', fn ($pq) => $pq->where('phone', 'like', "%{$query}%"));
+            })
+            ->limit(10)
+            ->get()
+            ->map(fn ($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'phone' => $u->profile?->phone ?? '',
+            ]);
+
+        return response()->json(['customers' => $customers]);
+    }
+
+    /**
+     * Walk-in: create a new guest customer (User + UserProfile + CustomerUser).
+     */
+    public function walkInCreateCustomer(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => 'walkin.'.Str::uuid().'@126club.local',
+                'password' => Hash::make(Str::random(16)),
+            ]);
+
+            $profile = UserProfile::create([
+                'user_id' => $user->id,
+                'phone' => $validated['phone'] ?? null,
+            ]);
+
+            CustomerUser::create([
+                'user_id' => $user->id,
+                'user_profile_id' => $profile->id,
+                'total_visits' => 0,
+                'lifetime_spending' => 0,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'customer' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'phone' => $validated['phone'] ?? '',
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -196,13 +292,18 @@ class PosController extends Controller
 
     public function addToCart(Request $request, $productId): JsonResponse
     {
+        $posSettings = PosCategorySetting::allKeyed();
+
         // Check if it's a BOM or inventory item
         if (str_starts_with($productId, 'bom_')) {
             // BOM Recipe
             $bomId = str_replace('bom_', '', $productId);
             $bom = BomRecipe::with('inventoryItem')->find($bomId);
 
-            if (! $bom || ! $bom->inventoryItem || ! in_array($bom->inventoryItem->category_type, ['food', 'bar'])) {
+            $categoryType = $bom?->inventoryItem?->category_type;
+            $setting = $posSettings->get($categoryType);
+
+            if (! $bom || ! $bom->inventoryItem || ! $setting || ! $setting->show_in_pos || ! in_array($setting->source, ['bom', 'both'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Product not found',
@@ -214,16 +315,16 @@ class PosController extends Controller
                 'name' => $bom->inventoryItem->name,
                 'price' => $bom->selling_price,
                 'type' => 'bom',
-                'preparation_location' => in_array($bom->inventoryItem->category_type, ['food']) ? 'kitchen' : 'bar',
+                'preparation_location' => $setting->preparation_location,
             ];
         } else {
             // Inventory Item
             $itemId = str_replace('item_', '', $productId);
-            $inventoryItem = InventoryItem::where('id', $itemId)
-                ->where('category_type', 'beverage')
-                ->first();
+            $inventoryItem = InventoryItem::find($itemId);
 
-            if (! $inventoryItem) {
+            $setting = $posSettings->get($inventoryItem?->category_type);
+
+            if (! $inventoryItem || ! $setting || ! $setting->show_in_pos || ! in_array($setting->source, ['inventory', 'both'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Product not found',
@@ -235,7 +336,7 @@ class PosController extends Controller
                 'name' => $inventoryItem->name,
                 'price' => $inventoryItem->price ?? 0,
                 'type' => 'item',
-                'preparation_location' => 'bar',
+                'preparation_location' => $setting->preparation_location,
             ];
         }
 
@@ -303,7 +404,7 @@ class PosController extends Controller
     {
         $validated = $request->validate([
             'customer_type' => 'required|in:booking,walk-in',
-            'customer_user_id' => 'required|exists:users,id',
+            'customer_user_id' => 'required_if:customer_type,booking|nullable|exists:users,id',
             'table_id' => 'nullable|exists:tables,id',
             'discount_percentage' => 'nullable|integer|min:0|max:100',
         ]);
@@ -374,7 +475,7 @@ class PosController extends Controller
                         $itemName = $bom->inventoryItem->name;
                         $itemCode = $bom->inventoryItem->code;
                         $price = $bom->selling_price;
-                        $preparationLocation = in_array($bom->inventoryItem->category_type, ['food']) ? 'kitchen' : 'bar';
+                        $categoryType = $bom->inventoryItem->category_type;
                     } else {
                         $itemId = str_replace('item_', '', $productId);
                         $inventoryItem = InventoryItem::find($itemId);
@@ -387,8 +488,11 @@ class PosController extends Controller
                         $itemName = $inventoryItem->name;
                         $itemCode = $inventoryItem->code;
                         $price = $inventoryItem->price;
-                        $preparationLocation = 'bar'; // Default untuk drinks
+                        $categoryType = $inventoryItem->category_type;
                     }
+
+                    $posSettings = PosCategorySetting::allKeyed();
+                    $preparationLocation = $posSettings->get($categoryType)?->preparation_location ?? $cartItem['preparation_location'] ?? 'bar';
 
                     $quantity = $cartItem['quantity'];
                     $subtotal = $price * $quantity;
@@ -454,11 +558,112 @@ class PosController extends Controller
                 ]);
             }
 
-            // Walk-in implementation (belakangan)
-            return response()->json([
-                'success' => false,
-                'message' => 'Walk-in belum diimplementasikan',
-            ], 400);
+            // Walk-in: no table session, immediate payment + receipt
+            if ($validated['customer_type'] === 'walk-in') {
+                $request->validate([
+                    'walk_in_customer_id' => 'required|exists:users,id',
+                ]);
+
+                $customerId = (int) $request->input('walk_in_customer_id');
+
+                // Resolve CustomerUser for kitchen/bar checker
+                $customerUser = CustomerUser::where('user_id', $customerId)->first();
+
+                $orderNumber = 'ORD-'.date('Ymd').'-'.str_pad(
+                    Order::whereDate('created_at', today())->count() + 1,
+                    4,
+                    '0',
+                    STR_PAD_LEFT
+                );
+
+                $discountPercentage = (int) ($validated['discount_percentage'] ?? 0);
+                $posSettings = PosCategorySetting::allKeyed();
+
+                $order = Order::create([
+                    'table_session_id' => null,
+                    'created_by' => auth()->id(),
+                    'order_number' => $orderNumber,
+                    'status' => 'pending',
+                    'items_total' => 0,
+                    'discount_amount' => 0,
+                    'total' => 0,
+                    'ordered_at' => now(),
+                ]);
+
+                $itemsTotal = 0;
+
+                foreach ($cart as $productId => $cartItem) {
+                    if (str_starts_with($productId, 'bom_')) {
+                        $bomId = str_replace('bom_', '', $productId);
+                        $bom = BomRecipe::with('inventoryItem')->find($bomId);
+                        if (! $bom || ! $bom->inventoryItem) {
+                            continue;
+                        }
+                        $inventoryItemId = $bom->inventory_item_id;
+                        $itemName = $bom->inventoryItem->name;
+                        $itemCode = $bom->inventoryItem->code;
+                        $price = $bom->selling_price;
+                        $categoryType = $bom->inventoryItem->category_type;
+                    } else {
+                        $itemId = str_replace('item_', '', $productId);
+                        $inventoryItem = InventoryItem::find($itemId);
+                        if (! $inventoryItem) {
+                            continue;
+                        }
+                        $inventoryItemId = $inventoryItem->id;
+                        $itemName = $inventoryItem->name;
+                        $itemCode = $inventoryItem->code;
+                        $price = $inventoryItem->price;
+                        $categoryType = $inventoryItem->category_type;
+                    }
+
+                    $preparationLocation = $posSettings->get($categoryType)?->preparation_location ?? $cartItem['preparation_location'] ?? 'bar';
+                    $quantity = $cartItem['quantity'];
+                    $subtotal = $price * $quantity;
+                    $itemsTotal += $subtotal;
+
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'inventory_item_id' => $inventoryItemId,
+                        'item_name' => $itemName,
+                        'item_code' => $itemCode,
+                        'quantity' => $quantity,
+                        'price' => $price,
+                        'subtotal' => $subtotal,
+                        'discount_amount' => 0,
+                        'preparation_location' => $preparationLocation,
+                        'status' => 'pending',
+                    ]);
+                }
+
+                $discountAmount = (int) round($itemsTotal * $discountPercentage / 100);
+                $finalTotal = $itemsTotal - $discountAmount;
+
+                $order->update([
+                    'items_total' => $itemsTotal,
+                    'discount_amount' => $discountAmount,
+                    'total' => $finalTotal,
+                ]);
+
+                // Route to kitchen/bar checkers (no table session)
+                $this->routeOrderToPreparation($order, null, $orderNumber, $customerUser?->id);
+
+                DB::commit();
+
+                session()->forget('pos_cart');
+
+                // Always auto-print receipt for walk-in
+                $this->printOrderReceipt($order);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Order #{$orderNumber} (Walk-in) berhasil dibuat!",
+                    'order_number' => $orderNumber,
+                    'order_id' => $order->id,
+                    'total' => $finalTotal,
+                    'formatted_total' => 'Rp '.number_format($finalTotal, 0, ',', '.'),
+                ]);
+            }
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -578,7 +783,7 @@ class PosController extends Controller
     /**
      * Route order items to Kitchen/Bar preparation queues and print tickets.
      */
-    protected function routeOrderToPreparation(Order $order, TableSession $tableSession, string $orderNumber): void
+    protected function routeOrderToPreparation(Order $order, ?TableSession $tableSession, string $orderNumber, ?int $walkInCustomerUserId = null): void
     {
         $kitchenItems = collect();
         $barItems = collect();
@@ -587,14 +792,21 @@ class PosController extends Controller
         foreach ($order->items as $item) {
             if ($item->preparation_location === 'kitchen') {
                 $kitchenItems->push($item);
-            } else {
+            } elseif ($item->preparation_location === 'bar') {
                 $barItems->push($item);
             }
+            // 'direct' items go straight to transaction — no kitchen/bar order needed
         }
 
-        // Get customer_users.id from users.id
-        $customerUser = \App\Models\CustomerUser::where('user_id', $tableSession->customer_id)->first();
-        $customerUserId = $customerUser?->id;
+        // Resolve customer_user_id: from session (booking) or from walk-in param
+        if ($tableSession !== null) {
+            $customerUser = CustomerUser::where('user_id', $tableSession->customer_id)->first();
+            $customerUserId = $customerUser?->id;
+        } else {
+            $customerUserId = $walkInCustomerUserId;
+        }
+
+        $tableId = $tableSession?->table_id;
 
         // Create Kitchen Order if there are kitchen items
         if ($kitchenItems->isNotEmpty()) {
@@ -602,7 +814,7 @@ class PosController extends Controller
                 'order_id' => $order->id,
                 'order_number' => $orderNumber,
                 'customer_user_id' => $customerUserId,
-                'table_id' => $tableSession->table_id,
+                'table_id' => $tableId,
                 'total_amount' => $kitchenItems->sum('subtotal'),
                 'status' => 'baru',
                 'progress' => 0,
@@ -634,7 +846,7 @@ class PosController extends Controller
                 'order_id' => $order->id,
                 'order_number' => $orderNumber,
                 'customer_user_id' => $customerUserId,
-                'table_id' => $tableSession->table_id,
+                'table_id' => $tableId,
                 'total_amount' => $barItems->sum('subtotal'),
                 'status' => 'baru',
                 'progress' => 0,
@@ -739,7 +951,7 @@ class PosController extends Controller
                 'price' => (float) $item['price'],
                 'quantity' => (int) $item['quantity'],
                 'subtotal' => (float) $item['price'] * (int) $item['quantity'],
-                'preparation_location' => $item['preparation_location'] ?? 'bar',
+                'preparation_location' => $item['preparation_location'] ?? 'direct',
             ];
         });
 

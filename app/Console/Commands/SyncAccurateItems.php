@@ -70,11 +70,17 @@ class SyncAccurateItems extends Command
         }
     }
 
-    protected function syncItems()
+    protected $itemFields = [
+        'id', 'name', 'no', 'unit1Name', 'itemCategory', 'unitPrice',
+        'itemProduced', 'materialProduced',
+    ];
+
+    protected function fetchStockMap(): array
     {
+        $map = [];
         $page = 1;
-        $pageSize = 100;
-        $totalPages = 0;
+        $pageSize = 500;
+
         do {
             $request = new \Illuminate\Http\Request;
             $request->merge([
@@ -82,25 +88,61 @@ class SyncAccurateItems extends Command
                 'pageSize' => $pageSize,
             ]);
 
-            $items = $this->accurateService->getItems($request);
-            Log::info('Fetched Items page', ['page' => $page, 'count' => $items->count()]);
+            // list-stock.do returns no + unit1Quantity (total stock across warehouses)
+            $stocks = $this->accurateService->getStockItems($request);
+            Log::info('DATA', ['stocks' => $stocks]);
+
+            if ($stocks->isEmpty()) {
+                break;
+            }
+
+            foreach ($stocks as $stock) {
+                $no = $stock['no'] ?? null;
+                if ($no !== null) {
+                    $map[$no] = $stock['quantity'] ?? $stock['quantity'] ?? 0;
+                }
+            }
+
+            $page++;
+        } while ($stocks->count() >= $pageSize);
+
+        Log::info('Accurate Stock Map fetched', ['total_items' => count($map)]);
+
+        return $map;
+    }
+
+    protected function syncItems()
+    {
+        $stockMap = $this->fetchStockMap();
+
+        $page = 1;
+        $pageSize = 100;
+        do {
+            $request = new \Illuminate\Http\Request;
+            $request->merge([
+                'page' => $page,
+                'pageSize' => $pageSize,
+            ]);
+
+            $items = $this->accurateService->getItems($request, $this->itemFields);
+
             if ($items->isEmpty()) {
                 break;
             }
-            if ($page === 1) {
-                $totalPages = ceil($this->stats['total'] / $pageSize);
-            }
+
             foreach ($items as $itemData) {
                 try {
-                    $this->syncSingleItem($itemData);
+                    $this->syncSingleItem($itemData, $stockMap);
                 } catch (Exception $e) {
+                    Log::warning('Sync item failed', ['id' => $itemData['id'] ?? null, 'error' => $e->getMessage()]);
                 }
             }
+
             $page++;
         } while ($items->count() >= $pageSize);
     }
 
-    protected function syncSingleItem(array $itemData)
+    protected function syncSingleItem(array $itemData, array $stockMap = [])
     {
         $accurateId = $itemData['id'] ?? null;
 
@@ -109,30 +151,24 @@ class SyncAccurateItems extends Command
 
             return;
         }
-        $itemDetail = $this->accurateService->getDetailItem($accurateId);
-        Log::info('Fetched Item detail', ['accurate_id' => $accurateId, 'detail' => $itemDetail]);
 
-        if (! $itemDetail) {
-            $this->stats['failed']++;
-
-            return;
-        }
-        $itemData = $itemDetail;
+        $itemNo = $itemData['no'] ?? null;
+        $stockQuantity = $itemNo !== null ? ($stockMap[$itemNo] ?? 0) : 0;
 
         $itemDataToSave = [
             'name' => $itemData['name'] ?? 'Unknown Item',
-            'code' => $itemData['no'] ?? 'UNKNOWN-'.$accurateId,
+            'code' => $itemNo ?? 'UNKNOWN-'.$accurateId,
             'unit' => $itemData['unit1Name'] ?? 'Unit',
             'category_type' => $itemData['itemCategory']['name'] ?? 'Uncategorized',
             'price' => $itemData['unitPrice'] ?? 0,
             'item_produced' => $itemData['itemProduced'] ?? false,
-            'stock_quantity' => $itemData['totalUnit1Quantity'] ?? 0,
+            'stock_quantity' => $stockQuantity,
             'material_produced' => $itemData['materialProduced'] ?? false,
         ];
 
-        Log::info('Syncing Item', ['accurate_id' => $accurateId, 'data' => $itemDataToSave]);
+        Log::info('Syncing Item', ['accurate_id' => $accurateId, 'no' => $itemNo, 'stock' => $stockQuantity]);
 
-        $item = InventoryItem::updateOrCreate(
+        InventoryItem::updateOrCreate(
             ['accurate_id' => $accurateId],
             $itemDataToSave
         );

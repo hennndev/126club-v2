@@ -197,6 +197,7 @@ class TableReservationController extends Controller
         $validated = $request->validate([
             'table_id' => 'required|exists:tables,id',
             'customer_id' => 'required|exists:users,id',
+            'booking_name' => 'nullable|string|max:255',
             'reservation_date' => 'required|date',
             'reservation_time' => 'required',
             'note' => 'nullable|string|max:1000',
@@ -225,6 +226,7 @@ class TableReservationController extends Controller
         $validated = $request->validate([
             'table_id' => 'required|exists:tables,id',
             'customer_id' => 'required|exists:users,id',
+            'booking_name' => 'nullable|string|max:255',
             'reservation_date' => 'required|date',
             'reservation_time' => 'required',
             'status' => 'required|in:pending,confirmed,checked_in,completed,cancelled,rejected',

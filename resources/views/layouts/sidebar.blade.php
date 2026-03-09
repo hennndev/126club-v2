@@ -24,43 +24,46 @@
   <!-- Navigation -->
   <nav class="flex-1 overflow-y-auto py-4 px-3">
     <!-- OPERATIONS -->
-    <div class="mb-6">
-      <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Operations</h3>
-      <x-nav-link href="{{ route('admin.dashboard') }}"
-                  :active="request()->routeIs('admin.dashboard')">
-        <x-slot name="icon">
-          <svg class="w-5 h-5"
-               fill="none"
-               stroke="currentColor"
-               viewBox="0 0 24 24">
-            <path stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-        </x-slot>
-        Dashboard
-      </x-nav-link>
-      @hasanyrole(['Administrator', 'Manager'])
-        <x-nav-link href="{{ route('admin.tables.index') }}"
-                    :active="request()->routeIs('admin.tables.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          </x-slot>
-          Meja
-        </x-nav-link>
-      @endhasanyrole
-      {{-- Active Tables dipindahkan ke tab Bookings --}}
-      {{-- Table Scanner hidden from sidebar (accessible via waiter mobile app) --}}
-      {{--
+    @canany(['admin.dashboard', 'admin.tables.*', 'admin.events.*'])
+      <div class="mb-6">
+        <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Operations</h3>
+        @can('admin.dashboard')
+          <x-nav-link href="{{ route('admin.dashboard') }}"
+                      :active="request()->routeIs('admin.dashboard')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </x-slot>
+            Dashboard
+          </x-nav-link>
+        @endcan
+        @can('admin.tables.*')
+          <x-nav-link href="{{ route('admin.tables.index') }}"
+                      :active="request()->routeIs('admin.tables.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </x-slot>
+            Meja
+          </x-nav-link>
+        @endcan
+        {{-- Active Tables dipindahkan ke tab Bookings --}}
+        {{-- Table Scanner hidden from sidebar (accessible via waiter mobile app) --}}
+        {{--
       <x-nav-link href="{{ route('admin.table-scanner.index') }}"
                   :active="request()->routeIs('admin.table-scanner.*')">
         <x-slot name="icon">
@@ -77,113 +80,124 @@
         Table Scanner
       </x-nav-link>
       --}}
-      @hasanyrole(['Administrator', 'Manager', 'DJ'])
-        <x-nav-link href="{{ route('admin.events.index') }}"
-                    :active="request()->routeIs('admin.events.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </x-slot>
-          Acara
-        </x-nav-link>
-      @endhasanyrole
-    </div>
+        @can('admin.events.*')
+          <x-nav-link href="{{ route('admin.events.index') }}"
+                      :active="request()->routeIs('admin.events.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </x-slot>
+            Acara
+          </x-nav-link>
+        @endcan
+      </div>
+    @endcanany
 
-    @hasanyrole(['Administrator', 'Manager', 'Cashier'])
+    @canany(['admin.pos.*', 'admin.bookings.*', 'admin.transaction-history.*', 'admin.transaction-checker.*'])
       <!-- TRANSACTION -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Transaction</h3>
-        <x-nav-link href="{{ route('admin.pos.index') }}"
-                    :active="request()->routeIs('admin.pos.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          </x-slot>
-          Point of Sale
-        </x-nav-link>
-        <x-nav-link href="{{ route('admin.bookings.index') }}"
-                    :active="request()->routeIs('admin.bookings.*')"
-                    :badge="$pendingBookingsCount ?: null">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </x-slot>
-          Booking
-        </x-nav-link>
-        <x-nav-link href="{{ route('admin.transaction-history.index') }}"
-                    :active="request()->routeIs('admin.transaction-history.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </x-slot>
-          Riwayat Transaksi
-        </x-nav-link>
-        <x-nav-link href="{{ route('admin.transaction-checker.index') }}"
-                    :active="request()->routeIs('admin.transaction-checker.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-          </x-slot>
-          Transaction Checker
-        </x-nav-link>
+        @can('admin.pos.*')
+          <x-nav-link href="{{ route('admin.pos.index') }}"
+                      :active="request()->routeIs('admin.pos.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </x-slot>
+            Point of Sale
+          </x-nav-link>
+        @endcan
+        @can('admin.bookings.*')
+          <x-nav-link href="{{ route('admin.bookings.index') }}"
+                      :active="request()->routeIs('admin.bookings.*')"
+                      :badge="$pendingBookingsCount ?: null">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </x-slot>
+            Booking
+          </x-nav-link>
+        @endcan
+        @can('admin.transaction-history.*')
+          <x-nav-link href="{{ route('admin.transaction-history.index') }}"
+                      :active="request()->routeIs('admin.transaction-history.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </x-slot>
+            Riwayat Transaksi
+          </x-nav-link>
+        @endcan
+        @can('admin.transaction-checker.*')
+          <x-nav-link href="{{ route('admin.transaction-checker.index') }}"
+                      :active="request()->routeIs('admin.transaction-checker.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </x-slot>
+            Transaction Checker
+          </x-nav-link>
+        @endcan
       </div>
-    @endhasanyrole
+    @endcanany
 
-    @hasanyrole(['Administrator', 'Manager', 'Cashier', 'Kitchen', 'Bar'])
+    @canany(['admin.inventory.*', 'admin.kitchen.*', 'admin.bar.*', 'admin.bom.*', 'admin.stock-opname.*'])
       <!-- PRODUCTION -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Production</h3>
-        <x-nav-link href="{{ route('admin.inventory.index') }}"
-                    :active="request()->routeIs('admin.inventory.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-            </svg>
-          </x-slot>
-          Warehouse
-        </x-nav-link>
-        @hasanyrole(['Administrator', 'Manager', 'Kitchen'])
+        @can('admin.inventory.*')
+          <x-nav-link href="{{ route('admin.inventory.index') }}"
+                      :active="request()->routeIs('admin.inventory.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+              </svg>
+            </x-slot>
+            Warehouse
+          </x-nav-link>
+        @endcan
+        @can('admin.kitchen.*')
           <x-nav-link href="{{ route('admin.kitchen.index') }}"
                       :active="request()->routeIs('admin.kitchen.*')">
             <x-slot name="icon">
@@ -199,8 +213,8 @@
             </x-slot>
             Kitchen
           </x-nav-link>
-        @endhasanyrole
-        @hasanyrole(['Administrator', 'Manager', 'Bar'])
+        @endcan
+        @can('admin.bar.*')
           <x-nav-link href="{{ route('admin.bar.index') }}"
                       :active="request()->routeIs('admin.bar.*')">
             <x-slot name="icon">
@@ -216,23 +230,25 @@
             </x-slot>
             Bar
           </x-nav-link>
-        @endhasanyrole
-        <x-nav-link href="{{ route('admin.bom.index') }}"
-                    :active="request()->routeIs('admin.bom.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </x-slot>
-          BOM
-        </x-nav-link>
-        @hasanyrole(['Administrator', 'Manager', 'Kitchen'])
+        @endcan
+        @can('admin.bom.*')
+          <x-nav-link href="{{ route('admin.bom.index') }}"
+                      :active="request()->routeIs('admin.bom.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </x-slot>
+            BOM
+          </x-nav-link>
+        @endcan
+        @can('admin.stock-opname.*')
           <x-nav-link href="{{ route('admin.stock-opname.index') }}"
                       :active="request()->routeIs('admin.stock-opname.*')">
             <x-slot name="icon">
@@ -248,15 +264,15 @@
             </x-slot>
             Stock Opname
           </x-nav-link>
-        @endhasanyrole
+        @endcan
       </div>
-    @endhasanyrole
+    @endcanany
 
-    @hasanyrole(['Administrator', 'Manager', 'Cashier', 'DJ'])
+    @canany(['admin.customers.*', 'admin.customer-keep.*', 'admin.rewards.*', 'admin.song-requests.*', 'admin.display-messages.*'])
       <!-- CUSTOMER MANAGEMENT -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Customer Management</h3>
-        @hasanyrole(['Administrator', 'Manager', 'Cashier'])
+        @can('admin.customers.*')
           <x-nav-link href="{{ route('admin.customers.index') }}"
                       :active="request()->routeIs('admin.customers.*')">
             <x-slot name="icon">
@@ -272,6 +288,8 @@
             </x-slot>
             Customer
           </x-nav-link>
+        @endcan
+        @can('admin.customer-keep.*')
           <x-nav-link href="{{ route('admin.customer-keep.index') }}"
                       :active="request()->routeIs('admin.customer-keep.*')">
             <x-slot name="icon">
@@ -287,6 +305,8 @@
             </x-slot>
             Customer Keep
           </x-nav-link>
+        @endcan
+        @can('admin.rewards.*')
           <x-nav-link href="{{ route('admin.rewards.index') }}"
                       :active="request()->routeIs('admin.rewards.*')">
             <x-slot name="icon">
@@ -302,8 +322,8 @@
             </x-slot>
             Reward
           </x-nav-link>
-        @endhasanyrole
-        @hasanyrole(['Administrator', 'Manager', 'DJ'])
+        @endcan
+        @can('admin.song-requests.*')
           <x-nav-link href="{{ route('admin.song-requests.index') }}"
                       :active="request()->routeIs('admin.song-requests.*')"
                       :badge="$pendingSongRequestsCount ?: null">
@@ -320,6 +340,8 @@
             </x-slot>
             Song Request
           </x-nav-link>
+        @endcan
+        @can('admin.display-messages.*')
           <x-nav-link href="{{ route('admin.display-messages.index') }}"
                       :active="request()->routeIs('admin.display-messages.*')"
                       :badge="$pendingDisplayMessagesCount ?: null">
@@ -336,50 +358,54 @@
             </x-slot>
             Display Message
           </x-nav-link>
-        @endhasanyrole
+        @endcan
       </div>
-    @endhasanyrole
+    @endcanany
 
-    @hasanyrole(['Administrator', 'Manager'])
+    @canany(['admin.waiter-performance.*', 'admin.settings.*'])
       <!-- SYSTEM -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">System</h3>
-        <x-nav-link href="{{ route('admin.waiter-performance.index') }}"
-                    :active="request()->routeIs('admin.waiter-performance.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          </x-slot>
-          Waiter Performance
-        </x-nav-link>
-        <x-nav-link href="{{ route('admin.settings.index') }}"
-                    :active="request()->routeIs('admin.settings.*')">
-          <x-slot name="icon">
-            <svg class="w-5 h-5"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </x-slot>
-          Pengaturan
-        </x-nav-link>
+        @can('admin.waiter-performance.*')
+          <x-nav-link href="{{ route('admin.waiter-performance.index') }}"
+                      :active="request()->routeIs('admin.waiter-performance.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </x-slot>
+            Waiter Performance
+          </x-nav-link>
+        @endcan
+        @can('admin.settings.*')
+          <x-nav-link href="{{ route('admin.settings.index') }}"
+                      :active="request()->routeIs('admin.settings.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </x-slot>
+            Pengaturan
+          </x-nav-link>
+        @endcan
       </div>
-    @endhasanyrole
+    @endcanany
   </nav>
 
   <!-- Footer -->

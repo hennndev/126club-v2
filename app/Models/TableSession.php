@@ -15,6 +15,7 @@ class TableSession extends Model
         'table_id',
         'customer_id',
         'waiter_id',
+        'pax',
         'session_code',
         'check_in_qr_code',
         'check_in_qr_expires_at',

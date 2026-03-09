@@ -106,8 +106,8 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="bg-gray-50 border-b border-gray-200">
-            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">ID</th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Customer</th>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Nama Booking</th>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Nama Customer</th>
             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Meja</th>
             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Tanggal & Waktu</th>
             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Catatan</th>
@@ -120,7 +120,7 @@
               $slotKey = $booking->table_id . '_' . $booking->reservation_date;
               $isConflict = in_array($slotKey, $conflictingPendingKeys);
               $isBlocked = in_array($slotKey, $blockedPendingKeys);
-              $customerName = $booking->customer->profile->name ?? ($booking->customer->customerUser->name ?? ($booking->customer->name ?? '-'));
+              $customerName = $booking->booking_name ?? ($booking->customer?->name ?? '-');
               $areaName = $booking->table?->area?->name ?? '';
               $areaBadge = match (true) {
                   str_contains(strtolower($areaName), 'room') || str_contains(strtolower($areaName), 'vip') => 'bg-purple-100 text-purple-700',
@@ -132,18 +132,16 @@
             @endphp
             <tr class="hover:bg-gray-50 transition-colors {{ $isConflict ? 'bg-orange-50 hover:bg-orange-100' : ($isBlocked ? 'bg-red-50 hover:bg-red-100' : '') }}">
 
-              {{-- ID --}}
-              <td class="px-4 py-4 whitespace-nowrap">
-                <span class="text-sm font-mono font-semibold text-gray-500">
-                  #{{ $booking->booking_code_formatted }}
-                </span>
+              {{-- Nama Booking --}}
+              <td class="px-4 py-4">
+                <div class="text-base font-semibold text-gray-900">{{ $booking->booking_name ?? '-' }}</div>
               </td>
 
-              {{-- Customer --}}
+              {{-- Nama Customer --}}
               <td class="px-4 py-4">
-                <div class="text-base font-semibold text-gray-900">{{ $customerName }}</div>
+                <div class="text-base font-semibold text-gray-900">{{ $booking->customer?->name ?? '-' }}</div>
                 @php
-                  $phone = $booking->customer->profile?->phone ?? null;
+                  $phone = $booking->customer?->profile?->phone ?? null;
                 @endphp
                 @if ($phone)
                   <div class="text-sm text-gray-400 mt-0.5">{{ $phone }}</div>

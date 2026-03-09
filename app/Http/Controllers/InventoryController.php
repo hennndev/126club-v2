@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryItem;
+use App\Services\AccurateService;
 use Illuminate\Http\Request;
 
 class InventoryController extends Controller
 {
+    public function __construct(protected AccurateService $accurateService) {}
+
     public function index(Request $request)
     {
         $query = InventoryItem::with('category');
@@ -28,39 +31,45 @@ class InventoryController extends Controller
         }
 
         $items = $query
-        ->whereNotIn('category_type', ['food', 'bar'])
-        ->orderBy('name')->get();
-        
+            ->whereNotIn('category_type', ['food', 'bar'])
+            ->orderBy('name')->get();
+
         $totalItems = InventoryItem::count();
         $totalStockValue = InventoryItem::selectRaw('SUM(price * stock_quantity) as total')->value('total') ?? 0;
         $lowStockCount = InventoryItem::whereColumn('stock_quantity', '<=', 'threshold')->count();
+        $categoryTypes = InventoryItem::distinct()->orderBy('category_type')->pluck('category_type');
 
         return view('inventory.index', compact(
             'items',
             'totalItems',
             'totalStockValue',
             'lowStockCount',
+            'categoryTypes',
         ));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category_id' => 'required|exists:inventory_categories,id',
             'name' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:inventory_items,code',
             'category_type' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
             'stock_quantity' => 'required|integer|min:0',
             'threshold' => 'required|integer|min:0',
             'unit' => 'required|string|max:50',
+            'is_active' => 'nullable|boolean',
         ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
 
         try {
             InventoryItem::create($validated);
+
             return redirect()->route('admin.inventory.index')
                 ->with('success', 'Inventory item berhasil ditambahkan');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Gagal menambahkan item: ' . $e->getMessage()])
+            return back()->withErrors(['error' => 'Gagal menambahkan item: '.$e->getMessage()])
                 ->withInput();
         }
     }
@@ -68,21 +77,25 @@ class InventoryController extends Controller
     public function update(Request $request, InventoryItem $inventory)
     {
         $validated = $request->validate([
-            'category_id' => 'required|exists:inventory_categories,id',
             'name' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:inventory_items,code,'.$inventory->id,
             'category_type' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
             'stock_quantity' => 'required|integer|min:0',
             'threshold' => 'required|integer|min:0',
             'unit' => 'required|string|max:50',
+            'is_active' => 'nullable|boolean',
         ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
 
         try {
             $inventory->update($validated);
+
             return redirect()->route('admin.inventory.index')
                 ->with('success', 'Inventory item berhasil diupdate');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Gagal mengupdate item: ' . $e->getMessage()])
+            return back()->withErrors(['error' => 'Gagal mengupdate item: '.$e->getMessage()])
                 ->withInput();
         }
     }
@@ -91,11 +104,35 @@ class InventoryController extends Controller
     {
         try {
             $inventory->delete();
+
             return redirect()->route('admin.inventory.index')
                 ->with('success', 'Inventory item berhasil dihapus');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Gagal menghapus item: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Gagal menghapus item: '.$e->getMessage()]);
         }
+    }
+
+    public function fetchDetail(InventoryItem $inventory): \Illuminate\Http\JsonResponse
+    {
+        if (! $inventory->accurate_id) {
+            return response()->json(['success' => false, 'message' => 'Item tidak memiliki Accurate ID.'], 422);
+        }
+
+        $detail = $this->accurateService->getDetailItem($inventory->accurate_id);
+
+        if (! $detail) {
+            return response()->json(['success' => false, 'message' => 'Gagal mengambil detail dari Accurate.'], 502);
+        }
+
+        $detailGroup = collect($detail['detailGroup'] ?? [])->map(fn ($g) => [
+            'item_id' => $g['itemId'] ?? null,
+            'detail_name' => $g['detailName'] ?? null,
+            'quantity' => $g['quantity'] ?? 0,
+            'unit' => $g['itemUnit']['name'] ?? null,
+            'seq' => $g['seq'] ?? null,
+        ])->values()->all();
+
+        return response()->json(['success' => true, 'name' => $inventory->name, 'detail_group' => $detailGroup]);
     }
 
     public function updateThreshold(Request $request)
@@ -109,13 +146,14 @@ class InventoryController extends Controller
         try {
             foreach ($validated['items'] as $itemData) {
                 InventoryItem::where('id', $itemData['id'])->update([
-                    'threshold' => $itemData['threshold']
+                    'threshold' => $itemData['threshold'],
                 ]);
             }
+
             return redirect()->route('admin.inventory.index')
                 ->with('success', 'Threshold berhasil diupdate');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Gagal mengupdate threshold: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Gagal mengupdate threshold: '.$e->getMessage()]);
         }
     }
 }

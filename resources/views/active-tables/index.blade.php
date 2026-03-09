@@ -98,6 +98,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pax</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill Status</th>
@@ -139,6 +140,63 @@
                     @if ($session->customer->profile)
                       <p class="text-xs text-gray-500">{{ $session->customer->profile->phone }}</p>
                     @endif
+                  </div>
+                </td>
+
+                {{-- PAX --}}
+                <td class="px-6 py-4 whitespace-nowrap"
+                    x-data="paxEditor({{ $session->id }}, {{ $session->pax ?? 'null' }}, '{{ route('admin.active-tables.updatePax', $session) }}')">
+                  <div x-show="!editing"
+                       class="flex items-center gap-1.5">
+                    <span class="text-sm font-semibold text-gray-900"
+                          x-text="pax !== null ? pax + ' org' : '—'"></span>
+                    <button @click="editing = true"
+                            class="text-gray-400 hover:text-blue-600 transition"
+                            title="Edit pax">
+                      <svg class="w-3.5 h-3.5"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div x-show="editing"
+                       x-cloak
+                       class="flex items-center gap-1">
+                    <input type="number"
+                           x-model="draft"
+                           min="1"
+                           class="w-16 px-2 py-1 text-sm border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                           @keydown.enter="save()"
+                           @keydown.escape="editing = false">
+                    <button @click="save()"
+                            class="text-green-600 hover:text-green-800 transition">
+                      <svg class="w-4 h-4"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button @click="editing = false"
+                            class="text-gray-400 hover:text-gray-600 transition">
+                      <svg class="w-4 h-4"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -184,7 +242,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="8"
+                <td colspan="9"
                     class="px-6 py-12 text-center">
                   <div class="flex flex-col items-center justify-center text-gray-400">
                     <svg class="w-16 h-16 mb-4"
@@ -207,4 +265,35 @@
       </div>
     </div>
   </div>
+
+  @push('scripts')
+    <script>
+      function paxEditor(sessionId, initialPax, updateUrl) {
+        return {
+          editing: false,
+          pax: initialPax,
+          draft: initialPax ?? '',
+          async save() {
+            const val = parseInt(this.draft);
+            if (!val || val < 1) return;
+            const res = await fetch(updateUrl, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+              },
+              body: JSON.stringify({
+                pax: val
+              }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.pax = data.pax;
+              this.editing = false;
+            }
+          },
+        };
+      }
+    </script>
+  @endpush
 </x-app-layout>

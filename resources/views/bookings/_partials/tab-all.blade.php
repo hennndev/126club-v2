@@ -1,12 +1,40 @@
 {{-- ALL / MAP TAB --}}
 
+@php
+  $activeBookingsForJs = $activeBookingsByTable->mapWithKeys(
+      fn($b) => [
+          $b->id => [
+              'id' => $b->id,
+              'status' => $b->status,
+              'booking_name' => $b->booking_name,
+              'customer_name' => $b->customer?->name,
+              'customer_phone' => $b->customer?->profile?->phone,
+              'table_number' => $b->table?->table_number,
+              'area_name' => $b->table?->area?->name,
+              'reservation_date' => $b->reservation_date,
+              'reservation_time' => $b->reservation_time,
+              'note' => $b->note,
+          ],
+      ],
+  );
+@endphp
+<script>
+  window.activeBookingsById = @json($activeBookingsForJs);
+</script>
+
 <!-- Stats Row -->
 <div class="grid grid-cols-3 gap-4 mb-5">
   <!-- Available -->
   <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
     <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-      <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h11M9 21V3m12 10h-5m-5 4v2m5-6v6" />
+      <svg class="w-5 h-5 text-emerald-600"
+           fill="none"
+           stroke="currentColor"
+           viewBox="0 0 24 24">
+        <path stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 10h11M9 21V3m12 10h-5m-5 4v2m5-6v6" />
       </svg>
     </div>
     <div>
@@ -18,8 +46,14 @@
   <!-- Booked -->
   <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
     <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-      <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <svg class="w-5 h-5 text-amber-600"
+           fill="none"
+           stroke="currentColor"
+           viewBox="0 0 24 24">
+        <path stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     </div>
     <div>
@@ -31,8 +65,14 @@
   <!-- Checked-in -->
   <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
     <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-      <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      <svg class="w-5 h-5 text-blue-600"
+           fill="none"
+           stroke="currentColor"
+           viewBox="0 0 24 24">
+        <path stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
     </div>
     <div>
@@ -92,7 +132,7 @@
          class="rounded-xl p-4 border transition-all cursor-pointer hover:shadow-md
              {{ $isCheckedIn ? 'bg-blue-50 border-blue-300' : ($isBooked ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200 hover:border-slate-300') }}"
          @if (!$isBooked && !$isCheckedIn) @click="openModal({{ $table->id }})"
-         @elseif ($tableBooking) onclick="openStatusModal({{ $tableBooking->id }}, '{{ $tableBooking->status }}')" @endif>
+         @elseif ($tableBooking) onclick="openBookingInfoModal({{ $tableBooking->id }})" @endif>
 
       <!-- Card Header -->
       <div class="flex items-start justify-between mb-1">
@@ -118,7 +158,7 @@
       @if ($isCheckedIn && $tableBooking)
         @php $billing = $tableBooking->tableSession?->billing; @endphp
         <p class="text-sm font-semibold text-slate-800 truncate">
-          {{ $tableBooking->customer->profile->name ?? ($tableBooking->customer->customerUser->name ?? '-') }}
+          {{ $tableBooking->booking_name ?? ($tableBooking->customer?->name ?? '-') }}
         </p>
         @if ($billing && in_array($billing->billing_status, ['draft', 'finalized']))
           @if ($billing->orders_total >= $billing->minimum_charge)
@@ -134,7 +174,7 @@
         @endif
       @elseif ($isBooked && $tableBooking)
         <p class="text-sm font-semibold text-slate-800 truncate">
-          {{ $tableBooking->customer->profile->name ?? ($tableBooking->customer->customerUser->name ?? '-') }}
+          {{ $tableBooking->booking_name ?? ($tableBooking->customer?->name ?? '-') }}
         </p>
       @endif
     </div>
@@ -154,9 +194,12 @@
         <div class="bg-white border border-yellow-200 rounded-xl p-4 flex items-center justify-between gap-3">
           <div class="min-w-0">
             <p class="text-sm font-semibold text-gray-900 truncate">
-              {{ $pendingBooking->customer->profile->name ?? ($pendingBooking->customer->customerUser->name ?? '-') }}
+              {{ $pendingBooking->booking_name ?? '-' }}
             </p>
             <p class="text-xs text-gray-500 mt-0.5">
+              {{ $pendingBooking->customer?->name ?? '-' }}
+            </p>
+            <p class="text-xs text-gray-400 mt-0.5">
               {{ $pendingBooking->table?->table_number ?? '-' }} &middot;
               {{ \Carbon\Carbon::parse($pendingBooking->reservation_date)->format('d M Y') }} &middot;
               {{ $pendingBooking->reservation_time ? \Carbon\Carbon::parse($pendingBooking->reservation_time)->format('H:i') : '-' }}

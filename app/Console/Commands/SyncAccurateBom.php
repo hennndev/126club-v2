@@ -131,14 +131,7 @@ class SyncAccurateBom extends Command
             ? InventoryItem::where('code', $itemNo)->first()
             : null;
 
-        if (! $inventoryItem) {
-            Log::warning('BOM Sync: InventoryItem not found', ['itemNo' => $itemNo, 'accurateId' => $accurateId]);
-            $this->stats['failed']++;
-
-            return;
-        }
-
-        // Determine type from inventory item's category
+        // Determine type from inventor['item']y item's category
         $categoryType = strtolower($inventoryItem->category_type ?? '');
         $type = in_array($categoryType, ['food']) ? 'food' : 'beverage';
 

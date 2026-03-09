@@ -12,6 +12,7 @@ use App\Http\Controllers\RewardController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Settings\ClubHoursController;
 use App\Http\Controllers\Settings\DailyAuthCodeController;
+use App\Http\Controllers\Settings\PosCategorySettingController;
 use App\Http\Controllers\Settings\TierSettingsController;
 use App\Http\Controllers\TransactionCheckerController;
 use App\Http\Controllers\TransactionHistoryController;
@@ -178,6 +179,12 @@ Route::middleware('auth')->group(function () {
         Route::prefix('settings/club-hours')->name('settings.club-hours.')->group(function () {
             Route::get('/', [ClubHoursController::class, 'index'])->name('index');
             Route::put('/', [ClubHoursController::class, 'update'])->name('update');
+        });
+
+        // POS Category Settings
+        Route::prefix('settings/pos-categories')->name('settings.pos-categories.')->group(function () {
+            Route::get('/', [PosCategorySettingController::class, 'index'])->name('index');
+            Route::post('/', [PosCategorySettingController::class, 'save'])->name('save');
         });
     });
 });

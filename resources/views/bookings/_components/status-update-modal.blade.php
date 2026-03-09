@@ -54,20 +54,6 @@
             </div>
           </label>
 
-          <!-- Completed -->
-          <label class="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-            <input type="radio"
-                   name="status"
-                   value="completed"
-                   class="w-4 h-4 text-slate-600 focus:ring-slate-500">
-            <div class="ml-3 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700">Completed</span>
-                <span class="text-sm text-gray-700">Selesai / Bill closed</span>
-              </div>
-            </div>
-          </label>
-
           <!-- Cancelled -->
           <label class="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
             <input type="radio"

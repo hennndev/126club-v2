@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleController extends Controller
 {
@@ -13,11 +14,11 @@ class RoleController extends Controller
      */
     public function index()
     {
-        $roles = Role::withCount(['permissions', 'users'])->get();
+        $roles = Role::with('permissions')->withCount(['permissions', 'users'])->get();
         $permissions = Permission::all();
         $totalRoles = Role::count();
         $totalPermissions = Permission::count();
-        
+
         return view('roles.index', compact('roles', 'permissions', 'totalRoles', 'totalPermissions'));
     }
 
@@ -42,8 +43,10 @@ class RoleController extends Controller
         // Otherwise, you might need to add a migration to add description column
 
         if (isset($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
+            $role->syncPermissions(Permission::findMany($validated['permissions']));
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return redirect()->route('admin.roles.index')->with('success', 'Role berhasil ditambahkan!');
     }
@@ -54,7 +57,7 @@ class RoleController extends Controller
     public function update(Request $request, Role $role)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
+            'name' => 'required|string|max:255|unique:roles,name,'.$role->id,
             'description' => 'nullable|string',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,id',
@@ -65,10 +68,12 @@ class RoleController extends Controller
         ]);
 
         if (isset($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
+            $role->syncPermissions(Permission::findMany($validated['permissions']));
         } else {
             $role->syncPermissions([]);
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return redirect()->route('admin.roles.index')->with('success', 'Role berhasil diupdate!');
     }

@@ -45,10 +45,9 @@ class AccurateSyncController extends Controller
         }
 
         try {
-            Cache::put('accurate_sync_running', true, now()->addMinutes(30));
+            Cache::put('accurate_sync_running', true, now()->addMinutes(5));
             Artisan::call('accurate:sync-items', ['--force' => true]);
             $output = Artisan::output();
-            Cache::forget('accurate_sync_running');
 
             return response()->json([
                 'success' => true,
@@ -58,9 +57,6 @@ class AccurateSyncController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            // Clear flag jika error
-            Cache::forget('accurate_sync_running');
-
             Log::error('Manual sync items failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -70,6 +66,8 @@ class AccurateSyncController extends Controller
                 'success' => false,
                 'message' => 'Sync gagal: '.$e->getMessage(),
             ], 500);
+        } finally {
+            Cache::forget('accurate_sync_running');
         }
     }
 
@@ -156,10 +154,9 @@ class AccurateSyncController extends Controller
         }
 
         try {
-            Cache::put('accurate_bom_sync_running', true, now()->addMinutes(30));
+            Cache::put('accurate_bom_sync_running', true, now()->addMinutes(5));
             Artisan::call('accurate:sync-bom', ['--force' => true]);
             $output = Artisan::output();
-            Cache::forget('accurate_bom_sync_running');
 
             return response()->json([
                 'success' => true,
@@ -168,8 +165,6 @@ class AccurateSyncController extends Controller
                 'timestamp' => now()->format('Y-m-d H:i:s'),
             ]);
         } catch (\Exception $e) {
-            Cache::forget('accurate_bom_sync_running');
-
             Log::error('Manual sync BOM failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -179,6 +174,8 @@ class AccurateSyncController extends Controller
                 'success' => false,
                 'message' => 'Sync BOM gagal: '.$e->getMessage(),
             ], 500);
+        } finally {
+            Cache::forget('accurate_bom_sync_running');
         }
     }
 

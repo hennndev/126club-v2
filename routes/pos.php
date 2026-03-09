@@ -13,6 +13,9 @@ Route::post('pos/checkout', [PosController::class, 'checkout'])->name('pos.check
 Route::get('pos/recent-orders', [PosController::class, 'recentOrders'])->name('pos.recent-orders');
 Route::post('pos/assign-waiter/{booking}', [PosController::class, 'assignWaiterFromPos'])->name('pos.assign-waiter');
 
+Route::get('pos/walk-in/search-customers', [PosController::class, 'walkInSearchCustomers'])->name('pos.walk-in.search-customers');
+Route::post('pos/walk-in/create-customer', [PosController::class, 'walkInCreateCustomer'])->name('pos.walk-in.create-customer');
+
 // Printer integration
 Route::post('pos/print-receipt/{order?}', [PosController::class, 'printReceipt'])->name('pos.print-receipt');
 Route::post('pos/test-print', [PosController::class, 'testPrint'])->name('pos.test-print');

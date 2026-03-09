@@ -21,7 +21,9 @@
     <form id="roleForm"
           method="POST"
           action="{{ route('admin.roles.store') }}">
-      @csrf
+      <input type="hidden"
+             name="_token"
+             id="roleFormToken">
       <input type="hidden"
              name="_method"
              value="POST"

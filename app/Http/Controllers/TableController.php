@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Area;
 use App\Models\Billing;
 use App\Models\Tabel;
+use App\Models\TableSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -179,6 +180,18 @@ class TableController extends Controller
             'totalActiveSessions',
             'totalRevenue'
         ));
+    }
+
+    // UPDATE PAX PADA ACTIVE TABLE
+    public function updatePax(Request $request, TableSession $session): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate([
+            'pax' => 'required|integer|min:1|max:9999',
+        ]);
+
+        $session->update(['pax' => $validated['pax']]);
+
+        return response()->json(['success' => true, 'pax' => $session->pax]);
     }
 
     // HALAMAN TABLE SCANNER

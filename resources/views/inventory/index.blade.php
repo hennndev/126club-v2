@@ -96,25 +96,7 @@
         </div>
       </div>
 
-      <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm text-yellow-700 font-medium">Stok Rendah</p>
-            <p class="text-2xl font-bold text-yellow-900">{{ $lowStockCount }}</p>
-          </div>
-          <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-            <svg class="w-6 h-6 text-yellow-600"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-        </div>
-      </div>
+
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
@@ -229,6 +211,23 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex gap-2">
+                    <button onclick="fetchDetail({{ $item->id }}, '{{ addslashes($item->name) }}')"
+                            class="p-1 text-gray-600 hover:text-indigo-600 transition"
+                            title="Detail Accurate">
+                      <svg class="w-5 h-5"
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
                     <button onclick="editItem({{ $item->id }})"
                             class="p-1 text-gray-600 hover:text-blue-600 transition">
                       <svg class="w-5 h-5"
@@ -407,11 +406,9 @@
                     required
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent">
               <option value="">Pilih Kategori</option>
-              <option value="spices">Spices</option>
-              <option value="condiments">Condiments</option>
-              <option value="dairy">Dairy</option>
-              <option value="beverage">Beverage</option>
-              <option value="spirits">Spirits</option>
+              @foreach ($categoryTypes as $type)
+                <option value="{{ $type }}">{{ ucfirst($type) }}</option>
+              @endforeach
             </select>
           </div>
 
@@ -469,6 +466,17 @@
                    placeholder="10"
                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent">
           </div>
+
+          <!-- Is Active -->
+          <div class="col-span-2 flex items-center gap-3">
+            <input type="checkbox"
+                   name="is_active"
+                   id="is_active"
+                   value="1"
+                   class="w-4 h-4 text-slate-800 border-gray-300 rounded focus:ring-slate-500">
+            <label for="is_active"
+                   class="text-sm font-medium text-gray-700">Produk Aktif</label>
+          </div>
         </div>
 
         <div class="flex justify-end gap-3 mt-6">
@@ -519,6 +527,66 @@
             Hapus
           </button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  {{-- Detail Group Modal --}}
+  <div id="detailGroupModal"
+       class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="flex justify-between items-center p-6 border-b border-gray-200">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">Detail Group</h2>
+          <p id="detailGroupItemName"
+             class="text-sm text-gray-500 mt-0.5"></p>
+        </div>
+        <button onclick="closeDetailModal()"
+                class="text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-6 h-6"
+               fill="none"
+               stroke="currentColor"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div id="detailGroupContent"
+           class="p-6 overflow-y-auto flex-1">
+        <div id="detailGroupLoading"
+             class="flex justify-center py-8">
+          <svg class="animate-spin h-8 w-8 text-indigo-500"
+               fill="none"
+               viewBox="0 0 24 24">
+            <circle class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"></circle>
+            <path class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8z"></path>
+          </svg>
+        </div>
+        <div id="detailGroupEmpty"
+             class="hidden text-center py-8 text-gray-500">Tidak ada data detailGroup.</div>
+        <table id="detailGroupTable"
+               class="hidden w-full text-sm">
+          <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-2 text-left">#</th>
+              <th class="px-4 py-2 text-left">Nama</th>
+              <th class="px-4 py-2 text-right">Qty</th>
+              <th class="px-4 py-2 text-left">Satuan</th>
+            </tr>
+          </thead>
+          <tbody id="detailGroupBody"
+                 class="divide-y divide-gray-100"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -601,6 +669,7 @@
           form.action = '{{ route('admin.inventory.store') }}';
           formMethod.value = 'POST';
           form.reset();
+          document.getElementById('is_active').checked = true;
         } else if (mode === 'edit' && itemId) {
           const item = items.find(i => i.id === itemId);
           if (item) {
@@ -615,6 +684,7 @@
             document.getElementById('stock_quantity').value = item.stock_quantity;
             document.getElementById('threshold').value = item.threshold;
             document.getElementById('unit').value = item.unit;
+            document.getElementById('is_active').checked = !!item.is_active;
           }
         }
 
@@ -711,6 +781,46 @@
       document.getElementById('thresholdModal').addEventListener('click', function(e) {
         if (e.target === this) closeThresholdModal();
       });
+      document.getElementById('detailGroupModal').addEventListener('click', function(e) {
+        if (e.target === this) closeDetailModal();
+      });
+
+      function fetchDetail(itemId, itemName) {
+        document.getElementById('detailGroupModal').classList.remove('hidden');
+        document.getElementById('detailGroupItemName').textContent = itemName;
+        document.getElementById('detailGroupLoading').classList.remove('hidden');
+        document.getElementById('detailGroupEmpty').classList.add('hidden');
+        document.getElementById('detailGroupTable').classList.add('hidden');
+
+        fetch(`/admin/inventory/${itemId}/detail`)
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('detailGroupLoading').classList.add('hidden');
+            if (!data.success || !data.detail_group.length) {
+              document.getElementById('detailGroupEmpty').classList.remove('hidden');
+              return;
+            }
+            const tbody = document.getElementById('detailGroupBody');
+            tbody.innerHTML = data.detail_group.map((g, i) => `
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-2 text-gray-500">${g.seq ?? i + 1}</td>
+                <td class="px-4 py-2 font-medium text-gray-800">${g.detail_name ?? '-'}</td>
+                <td class="px-4 py-2 text-right text-gray-700">${g.quantity}</td>
+                <td class="px-4 py-2 text-gray-600">${g.unit ?? '-'}</td>
+              </tr>
+            `).join('');
+            document.getElementById('detailGroupTable').classList.remove('hidden');
+          })
+          .catch(() => {
+            document.getElementById('detailGroupLoading').classList.add('hidden');
+            document.getElementById('detailGroupEmpty').textContent = 'Gagal mengambil data.';
+            document.getElementById('detailGroupEmpty').classList.remove('hidden');
+          });
+      }
+
+      function closeDetailModal() {
+        document.getElementById('detailGroupModal').classList.add('hidden');
+      }
     </script>
   @endpush
 </x-app-layout>

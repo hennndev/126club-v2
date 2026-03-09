@@ -132,6 +132,19 @@
 
       <!-- Customer -->
       <div>
+        <label for="booking_name"
+               class="block text-sm font-semibold text-gray-700 mb-2">
+          Nama Booking <span class="text-gray-400 font-normal text-xs">(opsional — a.n. siapa reservasi ini)</span>
+        </label>
+        <input type="text"
+               name="booking_name"
+               id="booking_name"
+               placeholder="Contoh: a.n. Budi Santoso"
+               class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white">
+      </div>
+
+      <!-- Customer -->
+      <div>
         <label for="customer_id"
                class="block text-sm font-semibold text-gray-700 mb-2">
           Customer <span class="text-red-500">*</span>

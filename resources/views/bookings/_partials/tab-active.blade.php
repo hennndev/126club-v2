@@ -91,6 +91,7 @@
             <th class="px-5 py-3 text-left text-sm font-semibold text-gray-600">Customer</th>
             <th class="px-5 py-3 text-left text-sm font-semibold text-gray-600">Waiter</th>
             <th class="px-5 py-3 text-left text-sm font-semibold text-gray-600">Check-in</th>
+            <th class="px-5 py-3 text-center text-sm font-semibold text-gray-600">Pax</th>
             <th class="px-5 py-3 text-right text-sm font-semibold text-gray-600">Min. Charge</th>
             <th class="px-5 py-3 text-right text-sm font-semibold text-gray-600">Orders</th>
             <th class="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total (Live)</th>
@@ -169,6 +170,63 @@
                 </div>
                 <div class="text-sm text-gray-400 mt-0.5">
                   {{ $checkedInAt ? $checkedInAt->format('H:i') : '' }}
+                </div>
+              </td>
+
+              {{-- Pax --}}
+              <td class="px-5 py-4 whitespace-nowrap text-center"
+                  x-data="paxEditor({{ $session->id }}, {{ $session->pax ?? 'null' }}, '{{ route('admin.active-tables.updatePax', $session) }}')"
+                  x-cloak>
+                <div x-show="!editing"
+                     class="flex items-center justify-center gap-1.5">
+                  <span class="text-sm font-semibold text-gray-900"
+                        x-text="pax !== null ? pax + ' org' : '—'"></span>
+                  <button @click="editing = true; draft = pax ?? ''"
+                          class="text-gray-400 hover:text-blue-600 transition"
+                          title="Edit pax">
+                    <svg class="w-3.5 h-3.5"
+                         fill="none"
+                         stroke="currentColor"
+                         viewBox="0 0 24 24">
+                      <path stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                </div>
+                <div x-show="editing"
+                     class="flex items-center justify-center gap-1">
+                  <input type="number"
+                         x-model="draft"
+                         min="1"
+                         class="w-16 px-2 py-1 text-sm border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                         @keydown.enter="save()"
+                         @keydown.escape="editing = false">
+                  <button @click="save()"
+                          class="text-green-600 hover:text-green-800 transition">
+                    <svg class="w-4 h-4"
+                         fill="none"
+                         stroke="currentColor"
+                         viewBox="0 0 24 24">
+                      <path stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button @click="editing = false"
+                          class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-4 h-4"
+                         fill="none"
+                         stroke="currentColor"
+                         viewBox="0 0 24 24">
+                      <path stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               </td>
 

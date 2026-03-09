@@ -1,6 +1,33 @@
 <script>
   const allBookings = @json($bookings);
 
+  function paxEditor(sessionId, initialPax, updateUrl) {
+    return {
+      editing: false,
+      pax: initialPax,
+      draft: initialPax ?? '',
+      async save() {
+        const val = parseInt(this.draft);
+        if (!val || val < 1) return;
+        const res = await fetch(updateUrl, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+          },
+          body: JSON.stringify({
+            pax: val
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          this.pax = data.pax;
+          this.editing = false;
+        }
+      },
+    };
+  }
+
   function bookingPage(tables, bookedIds, checkedInIds) {
     return {
       selectedCategory: null,
@@ -63,6 +90,64 @@
 
   function closeDeleteModal() {
     document.getElementById('deleteModal')?.classList.add('hidden');
+  }
+
+  function openBookingInfoModal(bookingId) {
+    const booking = (window.activeBookingsById || {})[bookingId];
+    if (!booking) return;
+
+    document.getElementById('biModalBookingName').textContent = booking.booking_name || '—';
+    document.getElementById('biModalCustomerName').textContent = booking.customer_name || '—';
+    document.getElementById('biModalPhone').textContent = booking.customer_phone || '—';
+    document.getElementById('biModalTable').textContent = [booking.table_number, booking.area_name].filter(Boolean).join(' · ') || '—';
+
+    if (booking.reservation_date) {
+      const d = new Date(booking.reservation_date + 'T00:00:00');
+      document.getElementById('biModalDate').textContent = d.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } else {
+      document.getElementById('biModalDate').textContent = '—';
+    }
+    document.getElementById('biModalTime').textContent =
+      booking.reservation_time ? booking.reservation_time.substring(0, 5) : '—';
+
+    if (booking.note) {
+      document.getElementById('biModalNote').textContent = booking.note;
+      document.getElementById('biModalNoteWrap').classList.remove('hidden');
+    } else {
+      document.getElementById('biModalNoteWrap').classList.add('hidden');
+    }
+
+    const statusLabels = {
+      confirmed: '<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">Confirmed</span>',
+      checked_in: '<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">Checked-in</span>',
+    };
+    document.getElementById('biModalStatusBadge').innerHTML = statusLabels[booking.status] || '';
+
+    const formSection = document.getElementById('biModalStatusForm');
+    const readOnlySection = document.getElementById('biModalReadOnlyFooter');
+    const biStatusForm = document.getElementById('biStatusForm');
+
+    if (booking.status === 'confirmed') {
+      biStatusForm.action = `/admin/bookings/${bookingId}/status`;
+      biStatusForm.querySelectorAll('input[name="status"]').forEach(r => {
+        r.checked = r.value === booking.status;
+      });
+      formSection.classList.remove('hidden');
+      readOnlySection.classList.add('hidden');
+    } else {
+      formSection.classList.add('hidden');
+      readOnlySection.classList.remove('hidden');
+    }
+
+    document.getElementById('bookingInfoModal').classList.remove('hidden');
+  }
+
+  function closeBookingInfoModal() {
+    document.getElementById('bookingInfoModal')?.classList.add('hidden');
   }
 
   function openStatusModal(bookingId, currentStatus) {
@@ -206,6 +291,7 @@
       closeModal();
       closeDeleteModal();
       closeStatusModal();
+      closeBookingInfoModal();
     }
   });
 
@@ -217,5 +303,8 @@
   });
   document.getElementById('statusModal')?.addEventListener('click', e => {
     if (e.target === e.currentTarget) closeStatusModal();
+  });
+  document.getElementById('bookingInfoModal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeBookingInfoModal();
   });
 </script>

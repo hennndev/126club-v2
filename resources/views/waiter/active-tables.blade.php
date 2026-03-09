@@ -79,14 +79,70 @@
               </div>
             </div>
 
-            @if ($session->billing)
-              <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-                <span class="text-slate-700 text-sm">Total Tagihan</span>
-                <span class="font-bold text-slate-900">
-                  Rp {{ number_format($session->billing->grand_total, 0, ',', '.') }}
-                </span>
+            {{-- Pax editor --}}
+            <div class="flex items-center justify-between py-2.5 border-t border-slate-100"
+                 x-data="{
+                     editing: false,
+                     saving: false,
+                     pax: {{ $session->pax ?? 'null' }},
+                     inputVal: '{{ $session->pax ?? '' }}',
+                     capacity: {{ $session->table?->capacity ?? 'null' }},
+                     get displayPax() {
+                         return this.pax !== null ? this.pax : (this.capacity !== null ? this.capacity + ' (default)' : '—');
+                     },
+                     async save() {
+                         const val = parseInt(this.inputVal);
+                         if (!val || val < 1) return;
+                         this.saving = true;
+                         try {
+                             const res = await fetch('{{ route('waiter.active-tables.updatePax', $session->id) }}', {
+                                 method: 'PATCH',
+                                 headers: {
+                                     'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                     'Content-Type': 'application/json',
+                                     'Accept': 'application/json',
+                                 },
+                                 body: JSON.stringify({ pax: val }),
+                             });
+                             const data = await res.json();
+                             if (data.success) { this.pax = data.pax;
+                                 this.editing = false; }
+                         } finally { this.saving = false; }
+                     }
+                 }">
+              <span class="text-slate-700 text-sm">Pax</span>
+              <div class="flex items-center gap-2">
+                <span x-show="!editing"
+                      class="text-sm font-semibold text-slate-900"
+                      x-text="displayPax"></span>
+                <input x-show="editing"
+                       x-ref="paxInput"
+                       x-model="inputVal"
+                       type="number"
+                       min="1"
+                       max="9999"
+                       @keydown.enter="save()"
+                       @keydown.escape="editing = false"
+                       class="w-16 text-sm text-center border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-400">
+                <button x-show="!editing"
+                        @click="editing = true; inputVal = pax ?? capacity ?? ''; $nextTick(() => $refs.paxInput.select())"
+                        class="text-xs text-teal-600 font-medium hover:text-teal-800 transition">Edit</button>
+                <button x-show="editing"
+                        @click="save()"
+                        :disabled="saving"
+                        class="text-xs bg-teal-500 text-white px-2 py-0.5 rounded-lg font-medium hover:bg-teal-600 transition">Simpan</button>
+                <button x-show="editing"
+                        @click="editing = false"
+                        class="text-xs text-slate-500 hover:text-slate-700 transition">Batal</button>
               </div>
-            @endif
+            </div>
+
+            <div class="flex items-center justify-between pt-2.5 border-t border-slate-100">
+              <span class="text-slate-700 text-sm">Total Pesanan</span>
+              <span class="font-bold text-slate-900">
+                Rp {{ number_format($session->total_spent ?? 0, 0, ',', '.') }}
+              </span>
+            </div>
           </div>
         @endforeach
       </div>

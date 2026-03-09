@@ -8,76 +8,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckAdminRole
 {
-    /**
-     * Route name patterns accessible per role.
-     * Administrators bypass all checks.
-     *
-     * @var array<string, array<string>>
-     */
-    private const ROLE_ACCESS = [
-        'Manager' => [
-            'admin.dashboard',
-            'admin.tables.*',
-            'admin.areas.*',
-            'admin.bookings.*',
-            'admin.pos.*',
-            'admin.printer.*',
-            'admin.transaction-history.*',
-            'admin.transaction-checker.*',
-            'admin.kitchen.*',
-            'admin.bar.*',
-            'admin.inventory.*',
-            'admin.bom.*',
-            'admin.stock-opname.*',
-            'admin.customers.*',
-            'admin.customer-keep.*',
-            'admin.rewards.*',
-            'admin.song-requests.*',
-            'admin.display-messages.*',
-            'admin.events.*',
-            'admin.waiter-performance.*',
-            'admin.settings.*',
-            'admin.accurate.*',
-            'admin.sync.*',
-        ],
-        'Cashier' => [
-            'admin.dashboard',
-            'admin.pos.*',
-            'admin.printer.*',
-            'admin.bookings.*',
-            'admin.transaction-history.*',
-            'admin.transaction-checker.*',
-            'admin.customers.*',
-            'admin.customer-keep.*',
-            'admin.rewards.*',
-            'admin.inventory.*',
-            'admin.bom.*',
-            'admin.accurate.*',
-            'admin.sync.*',
-            'admin.settings.daily-auth-code.verify',        ],
-        'DJ' => [
-            'admin.dashboard',
-            'admin.song-requests.*',
-            'admin.display-messages.*',
-            'admin.events.*',
-        ],
-        'Kitchen' => [
-            'admin.dashboard',
-            'admin.kitchen.*',
-            'admin.inventory.*',
-            'admin.bom.*',
-            'admin.stock-opname.*',
-            'admin.sync.*',
-        ],
-        'Bar' => [
-            'admin.dashboard',
-            'admin.bar.*',
-            'admin.inventory.*',
-            'admin.bom.*',
-            'admin.sync.*',
-        ],
-    ];
-
     public function handle(Request $request, Closure $next): Response
     {
         $user = auth()->user();
@@ -97,15 +27,12 @@ class CheckAdminRole
             return $next($request);
         }
 
-        foreach (self::ROLE_ACCESS as $role => $patterns) {
-            if ($user->hasRole($role)) {
-                foreach ($patterns as $pattern) {
-                    if (fnmatch($pattern, $currentRoute)) {
-                        return $next($request);
-                    }
-                }
+        // Check if any of the user's permissions (via their roles) match the current route
+        $permissions = $user->getAllPermissions()->pluck('name');
 
-                abort(403, 'Akses ditolak.');
+        foreach ($permissions as $permission) {
+            if (fnmatch($permission, $currentRoute)) {
+                return $next($request);
             }
         }
 

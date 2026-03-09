@@ -5,6 +5,7 @@ use illuminate\Support\Facades\Route;
 
 Route::resource('inventory', InventoryController::class)->except(['show', 'create', 'edit']);
 Route::post('inventory/update-threshold', [InventoryController::class, 'updateThreshold'])->name('inventory.updateThreshold');
+Route::get('inventory/{inventory}/detail', [InventoryController::class, 'fetchDetail'])->name('inventory.fetchDetail');
 
 use App\Http\Controllers\StockOpnameController;
 
