@@ -43,6 +43,17 @@
           @php
             $checkedInAt = $session->checked_in_at ? \Carbon\Carbon::parse($session->checked_in_at)->setTimezone('Asia/Jakarta') : null;
             $duration = $checkedInAt ? $checkedInAt->diffForHumans(now(), \Carbon\CarbonInterface::DIFF_ABSOLUTE) : '—';
+
+            $billing = $session->billing;
+            $ordersTotal = (float) ($session->total_spent ?? 0);
+            $minimumCharge = (float) ($billing?->minimum_charge ?? 0);
+            $discountAmount = (float) ($billing?->discount_amount ?? 0);
+            $afterDiscount = max($ordersTotal - $discountAmount, 0);
+            $serviceChargeAmount = round(($afterDiscount * $generalSettings->service_charge_percentage) / 100, 0);
+            $taxAmount = round((($afterDiscount + $serviceChargeAmount) * $generalSettings->tax_percentage) / 100, 0);
+            $estimatedTotal = $afterDiscount + $serviceChargeAmount + $taxAmount;
+            $belowMinCharge = $minimumCharge > 0 && $ordersTotal < $minimumCharge;
+            $gap = $belowMinCharge ? $minimumCharge - $ordersTotal : 0;
           @endphp
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
             <div class="flex items-start justify-between mb-3">
@@ -105,8 +116,10 @@
                                  body: JSON.stringify({ pax: val }),
                              });
                              const data = await res.json();
-                             if (data.success) { this.pax = data.pax;
-                                 this.editing = false; }
+                             if (data.success) {
+                                 this.pax = data.pax;
+                                 this.editing = false;
+                             }
                          } finally { this.saving = false; }
                      }
                  }">
@@ -137,11 +150,66 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between pt-2.5 border-t border-slate-100">
-              <span class="text-slate-700 text-sm">Total Pesanan</span>
-              <span class="font-bold text-slate-900">
-                Rp {{ number_format($session->total_spent ?? 0, 0, ',', '.') }}
-              </span>
+            <div class="pt-2.5 border-t border-slate-100 space-y-1.5">
+
+              {{-- Minimum charge + gap warning --}}
+              @if ($minimumCharge > 0)
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-slate-500">Minimum Charge</span>
+                  <span class="text-slate-700">Rp {{ number_format($minimumCharge, 0, ',', '.') }}</span>
+                </div>
+                @if ($belowMinCharge)
+                  <div class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs text-amber-700">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0"
+                         fill="none"
+                         stroke="currentColor"
+                         viewBox="0 0 24 24">
+                      <path stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Kurang Rp {{ number_format($gap, 0, ',', '.') }} dari minimum charge
+                  </div>
+                @endif
+              @endif
+
+              {{-- Orders total --}}
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-500">Total Pesanan</span>
+                <span class="text-slate-700">Rp {{ number_format($ordersTotal, 0, ',', '.') }}</span>
+              </div>
+
+              {{-- Discount --}}
+              @if ($discountAmount > 0)
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-slate-500">Diskon</span>
+                  <span class="text-green-600">- Rp {{ number_format($discountAmount, 0, ',', '.') }}</span>
+                </div>
+              @endif
+
+              {{-- Service charge --}}
+              @if ($generalSettings->service_charge_percentage > 0)
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-slate-500">Service Charge ({{ $generalSettings->service_charge_percentage }}%)</span>
+                  <span class="text-slate-700">Rp {{ number_format($serviceChargeAmount, 0, ',', '.') }}</span>
+                </div>
+              @endif
+
+              {{-- Tax --}}
+              @if ($generalSettings->tax_percentage > 0)
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-slate-500">PPN ({{ $generalSettings->tax_percentage }}%)</span>
+                  <span class="text-slate-700">Rp {{ number_format($taxAmount, 0, ',', '.') }}</span>
+                </div>
+              @endif
+
+              {{-- Estimated total --}}
+              <div class="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                <span class="text-slate-700 text-sm font-semibold">Estimasi Total</span>
+                <span class="font-bold text-slate-900">Rp {{ number_format($estimatedTotal, 0, ',', '.') }}</span>
+              </div>
+
             </div>
           </div>
         @endforeach

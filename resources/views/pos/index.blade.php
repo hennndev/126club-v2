@@ -278,6 +278,15 @@
                         :disabled="isProcessing"
                         class="w-6 h-6 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg flex items-center justify-center text-gray-700 font-bold text-sm disabled:opacity-50 transition">+</button>
               </div>
+              <div class="mt-2 relative">
+                <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">📝</span>
+                <input type="text"
+                       :id="`note-${item.id}`"
+                       x-model="cartNotes[item.id]"
+                       placeholder="Tambah catatan item..."
+                       maxlength="200"
+                       class="w-full text-xs border-2 border-gray-300 rounded-lg pl-6 pr-2 py-1.5 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none bg-white placeholder-gray-400 text-gray-800 font-medium" />
+              </div>
             </div>
             <button type="button"
                     @click="removeFromCart(item.id)"
@@ -725,73 +734,77 @@
             </div>
           </div>
 
-          <!-- Waiter Info -->
-          <!-- Assigned: show chip -->
-          <div x-show="checkoutForm.waiterName"
+          <!-- Waiter Info (hidden for walk-in) -->
+          <div x-show="checkoutForm.customer_type !== 'walk-in'"
                style="display: none;"
-               class="flex items-center gap-2.5 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl">
-            <svg class="w-4 h-4 text-indigo-400 flex-shrink-0"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <span class="text-sm text-indigo-700 font-medium"
-                  x-text="'Waiter: ' + checkoutForm.waiterName"></span>
-          </div>
-          <!-- Not assigned + has booking: assign dropdown -->
-          <div x-show="!checkoutForm.waiterName && checkoutForm.reservationId"
-               style="display: none;"
-               class="space-y-1.5">
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Assign Waiter</label>
-            <div class="flex items-center gap-2">
-              <select @change="assignWaiterFromPos($event.target.value)"
-                      :disabled="checkoutForm.assigningWaiter"
-                      class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-white disabled:opacity-50">
-                <option value="">— Pilih Waiter —</option>
-                <template x-for="w in posWaiters"
-                          :key="w.id">
-                  <option :value="w.id"
-                          x-text="w.name"></option>
-                </template>
-              </select>
-              <svg x-show="checkoutForm.assigningWaiter"
-                   class="w-5 h-5 text-indigo-500 animate-spin flex-shrink-0"
+               class="space-y-0">
+            <!-- Assigned: show chip -->
+            <div x-show="checkoutForm.waiterName"
+                 style="display: none;"
+                 class="flex items-center gap-2.5 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+              <svg class="w-4 h-4 text-indigo-400 flex-shrink-0"
                    fill="none"
+                   stroke="currentColor"
                    viewBox="0 0 24 24">
-                <circle class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"></circle>
-                <path class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
+              <span class="text-sm text-indigo-700 font-medium"
+                    x-text="'Waiter: ' + checkoutForm.waiterName"></span>
             </div>
-            <p x-show="checkoutForm.assignWaiterError"
-               x-text="checkoutForm.assignWaiterError"
-               class="text-xs text-red-500"></p>
-          </div>
-          <!-- Not assigned + no reservation (walk-in): amber notice -->
-          <div x-show="!checkoutForm.waiterName && !checkoutForm.reservationId"
-               style="display: none;"
-               class="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
-            <svg class="w-4 h-4 text-amber-400 flex-shrink-0"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z" />
-            </svg>
-            <span class="text-sm text-amber-700 font-medium">Waiter belum di-assign untuk sesi ini</span>
-          </div>
+            <!-- Not assigned + has booking: assign dropdown -->
+            <div x-show="!checkoutForm.waiterName && checkoutForm.reservationId"
+                 style="display: none;"
+                 class="space-y-1.5">
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Assign Waiter</label>
+              <div class="flex items-center gap-2">
+                <select @change="assignWaiterFromPos($event.target.value)"
+                        :disabled="checkoutForm.assigningWaiter"
+                        class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-white disabled:opacity-50">
+                  <option value="">— Pilih Waiter —</option>
+                  <template x-for="w in posWaiters"
+                            :key="w.id">
+                    <option :value="w.id"
+                            x-text="w.name"></option>
+                  </template>
+                </select>
+                <svg x-show="checkoutForm.assigningWaiter"
+                     class="w-5 h-5 text-indigo-500 animate-spin flex-shrink-0"
+                     fill="none"
+                     viewBox="0 0 24 24">
+                  <circle class="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          stroke-width="4"></circle>
+                  <path class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </div>
+              <p x-show="checkoutForm.assignWaiterError"
+                 x-text="checkoutForm.assignWaiterError"
+                 class="text-xs text-red-500"></p>
+            </div>
+            <!-- Not assigned + no reservation (walk-in): amber notice -->
+            <div x-show="!checkoutForm.waiterName && !checkoutForm.reservationId"
+                 style="display: none;"
+                 class="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+              <svg class="w-4 h-4 text-amber-400 flex-shrink-0"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z" />
+              </svg>
+              <span class="text-sm text-amber-700 font-medium">Waiter belum di-assign untuk sesi ini</span>
+            </div>
+          </div>{{-- end waiter section --}}
 
           <!-- Summary Card -->
           <div class="bg-gray-900 rounded-2xl p-4 space-y-2.5">
@@ -851,25 +864,10 @@
                     class="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 font-medium text-sm transition">
               Batal
             </button>
-            <button type="submit"
-                    :disabled="isProcessing"
-                    class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              <svg x-show="isProcessing"
-                   class="w-4 h-4 animate-spin"
-                   fill="none"
-                   viewBox="0 0 24 24">
-                <circle class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"></circle>
-                <path class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <svg x-show="!isProcessing"
-                   class="w-4 h-4"
+            <button type="button"
+                    @click="showConfirmModal = true"
+                    class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4"
                    fill="none"
                    stroke="currentColor"
                    viewBox="0 0 24 24">
@@ -878,10 +876,194 @@
                       stroke-width="2"
                       d="M5 13l4 4L19 7" />
               </svg>
-              <span x-text="isProcessing ? 'Memproses...' : 'Selesaikan Transaksi'"></span>
+              Selesaikan Transaksi
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Konfirmasi Transaksi -->
+    <div x-show="showConfirmModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         style="display: none;"
+         class="fixed inset-0 bg-black/50 flex items-center justify-center z-[65] px-4"
+         @click.self="showConfirmModal = false">
+      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+           @click.stop>
+
+        <!-- Header -->
+        <div class="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-amber-600"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-gray-900 text-sm"
+                  x-text="'Konfirmasi Transaksi ' + (checkoutForm.customer_type === 'walk-in' ? 'Walk-in' : 'Booking')"></h3>
+              <p class="text-xs text-gray-500 mt-0.5">Pastikan semua detail transaksi sudah benar sebelum melanjutkan</p>
+            </div>
+          </div>
+          <button @click="showConfirmModal = false"
+                  class="text-gray-400 hover:text-gray-600 transition mt-0.5 flex-shrink-0">
+            <svg class="w-5 h-5"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+
+          <!-- Customer Info -->
+          <div class="bg-blue-50 border border-blue-100 rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+              <tbody>
+                <tr class="border-b border-blue-100">
+                  <td class="px-4 py-2.5 text-gray-500 w-1/3">Pelanggan</td>
+                  <td class="px-4 py-2.5 font-semibold text-gray-900 text-right"
+                      x-text="checkoutForm.customerName || '-'"></td>
+                </tr>
+                <tr class="border-b border-blue-100">
+                  <td class="px-4 py-2.5 text-gray-500">Telepon</td>
+                  <td class="px-4 py-2.5 font-semibold text-gray-900 text-right"
+                      x-text="checkoutForm.customerPhone || '-'"></td>
+                </tr>
+                <template x-if="checkoutForm.customer_type !== 'walk-in'">
+                  <tr class="border-b border-blue-100">
+                    <td class="px-4 py-2.5 text-gray-500">Meja</td>
+                    <td class="px-4 py-2.5 font-semibold text-blue-600 text-right"
+                        x-text="checkoutForm.table_display"></td>
+                  </tr>
+                </template>
+                <template x-if="checkoutForm.customer_type !== 'walk-in'">
+                  <tr>
+                    <td class="px-4 py-2.5 text-gray-500">Waiter</td>
+                    <td class="px-4 py-2.5 font-semibold text-gray-900 text-right"
+                        x-text="checkoutForm.waiterName || 'Belum di-assign'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Items -->
+          <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Detail Pesanan:</p>
+            <div class="space-y-2">
+              <template x-for="item in cart"
+                        :key="item.id">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-gray-800"
+                       x-text="item.name"></p>
+                    <p class="text-xs text-gray-400"
+                       x-text="item.quantity + ' x ' + formatCurrency(item.price)"></p>
+                  </div>
+                  <span class="text-sm font-semibold text-gray-900"
+                        x-text="formatCurrency(item.price * item.quantity)"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Totals -->
+          <div class="bg-gray-900 rounded-xl p-4 space-y-2">
+            <div class="flex justify-between text-sm text-gray-300">
+              <span>Subtotal</span>
+              <span x-text="formatCurrency(cartTotal)"></span>
+            </div>
+            <template x-if="checkoutForm.discountPercentage > 0">
+              <div class="flex justify-between text-sm text-orange-400">
+                <span x-text="'Diskon Tier ' + checkoutForm.tierName + ' (' + checkoutForm.discountPercentage + '%)'"></span>
+                <span x-text="'-' + formatCurrency(discountAmount())"></span>
+              </div>
+            </template>
+            <div class="border-t border-gray-700 pt-2 flex justify-between font-bold text-white">
+              <span>Total Pembayaran</span>
+              <span class="text-lg"
+                    x-text="formatCurrency(finalTotal())"></span>
+            </div>
+            <p class="text-xs text-gray-400 text-right"
+               x-text="cart.length + ' item'"></p>
+          </div>
+
+          <!-- Booking note -->
+          <template x-if="checkoutForm.customer_type !== 'walk-in'">
+            <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z" />
+              </svg>
+              <p class="text-xs text-amber-700">Transaksi booking tidak memerlukan pembayaran di tempat. Pastikan semua data sudah benar sebelum melanjutkan.</p>
+            </div>
+          </template>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="flex gap-3 px-5 pb-5 pt-3 border-t border-gray-100">
+          <button type="button"
+                  @click="showConfirmModal = false"
+                  class="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 font-medium text-sm transition">
+            Kembali
+          </button>
+          <button type="button"
+                  @click="showConfirmModal = false; submitCheckout()"
+                  :disabled="isProcessing"
+                  class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <svg x-show="isProcessing"
+                 class="w-4 h-4 animate-spin"
+                 fill="none"
+                 viewBox="0 0 24 24"
+                 style="display:none;">
+              <circle class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"></circle>
+              <path class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg x-show="!isProcessing"
+                 class="w-4 h-4"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7" />
+            </svg>
+            <span x-text="isProcessing ? 'Memproses...' : 'Ya, Selesaikan Transaksi'"></span>
+          </button>
+        </div>
+
       </div>
     </div>
 
@@ -988,7 +1170,8 @@
               <span class="font-semibold text-gray-800"
                     x-text="receiptData?.customerName"></span>
             </div>
-            <div class="flex justify-between">
+            <div x-show="receiptData?.customerType !== 'walk-in'"
+                 class="flex justify-between">
               <span class="text-gray-500">Meja</span>
               <span class="font-semibold text-gray-800"
                     x-text="receiptData?.tableDisplay"></span>
@@ -1056,6 +1239,7 @@
               <span class="text-xs font-semibold text-blue-600">Bar</span>
             </button>
             <a href="{{ route('admin.tables.index') }}"
+               x-show="receiptData?.customerType !== 'walk-in'"
                class="flex flex-1 flex-col items-center gap-1.5 p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl transition">
               <svg class="w-5 h-5 text-green-500"
                    fill="none"
@@ -1078,8 +1262,10 @@
                   class="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 font-medium text-sm transition">
             Lewati
           </button>
+          <!-- For Walk-in: Show Cetak Struk button -->
           <button type="button"
-                  @click="closeReceiptModal()"
+                  x-show="receiptData?.customerType === 'walk-in'"
+                  @click="receiptData?.orderId && window.open(posRoutes.receiptBase + '/' + receiptData.orderId + '/receipt', 'struk', 'width=360,height=700,scrollbars=yes'); closeReceiptModal()"
                   class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition flex items-center justify-center gap-2">
             <svg class="w-4 h-4"
                  fill="none"
@@ -1089,6 +1275,22 @@
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Cetak Struk
+          </button>
+          <!-- For Bookings: Show Done button -->
+          <button type="button"
+                  x-show="receiptData?.customerType !== 'walk-in'"
+                  @click="closeReceiptModal()"
+                  class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7" />
             </svg>
             Done
           </button>
@@ -1184,6 +1386,7 @@
         verifyAuthCode: "{{ route('admin.settings.daily-auth-code.verify') }}",
         walkInSearchCustomers: "{{ route('admin.pos.walk-in.search-customers') }}",
         walkInCreateCustomer: "{{ route('admin.pos.walk-in.create-customer') }}",
+        receiptBase: "{{ url('admin/pos/orders') }}",
       };
       const posAvailableTables = @json($availableTables);
       const posInitialData = {
@@ -1208,6 +1411,7 @@
           historyLoading: false,
           showCustomerTypeModal: false,
           showCheckoutModal: false,
+          showConfirmModal: false,
           showReceiptModal: false,
           receiptData: null,
           checkerPrinted: {
@@ -1248,6 +1452,7 @@
           },
           posWaiters: posWaiters,
           availableTables: posAvailableTables,
+          cartNotes: {},
 
           // Walk-in state
           walkInSearch: '',
@@ -1420,6 +1625,7 @@
               if (data.success) {
                 this.cart = [];
                 this.cartTotal = 0;
+                this.cartNotes = {};
                 this.showToastMessage(data.message, 'success');
               } else {
                 this.showToastMessage(data.message || 'Gagal mengosongkan keranjang', 'error');
@@ -1610,12 +1816,14 @@
                 },
                 body: JSON.stringify({
                   ...this.checkoutForm,
-                  discount_percentage: this.checkoutForm.discountPercentage
+                  discount_percentage: this.checkoutForm.discountPercentage,
+                  cart_notes: this.cartNotes,
                 }),
               });
               const data = await response.json();
               if (data.success) {
                 this.receiptData = {
+                  orderId: data.order_id,
                   orderNumber: data.order_number,
                   formattedTotal: data.formatted_total,
                   customerName: this.checkoutForm.customerName,
@@ -1637,8 +1845,8 @@
                 };
                 this.cart = [];
                 this.cartTotal = 0;
+                this.cartNotes = {};
                 this.showCheckoutModal = false;
-                this.showToastMessage('Transaksi berhasil!', 'success');
                 this.showReceiptModal = true;
                 this.checkoutForm = {
                   customer_type: '',

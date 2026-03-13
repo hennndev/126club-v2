@@ -172,7 +172,7 @@
                   $displayId = $isToday ? 'TRX-TODAY-' . $order->id : 'TRX-' . $order->id;
                   $isBooking = $order->tableSession?->reservation !== null;
                   $tableName = $order->tableSession?->table?->table_number;
-                  $customer = $order->tableSession?->customer;
+                  $customerName = $order->tableSession?->customer?->name ?? $order->customer?->user?->name;
                 @endphp
                 <tr class="hover:bg-gray-50 transition-colors">
                   <td class="px-5 py-3.5 whitespace-nowrap">
@@ -189,10 +189,10 @@
                   </td>
 
                   <td class="px-5 py-3.5">
-                    @if ($customer)
-                      <span class="font-medium text-gray-800">{{ $customer->name }}</span>
+                    @if ($customerName)
+                      <span class="font-medium text-gray-800">{{ $customerName }}</span>
                     @else
-                      <span class="text-gray-400 text-xs">Guest</span>
+                      <span class="text-gray-400 text-xs">Walk-in</span>
                     @endif
                   </td>
 
@@ -224,7 +224,7 @@
                                id: {{ $order->id }},
                                displayId: '{{ $displayId }}',
                                total: 'Rp {{ number_format($order->total, 0, ',', '.') }}',
-                               customer: '{{ $customer?->name ?? 'Guest' }}',
+                               customer: '{{ $customerName ?? 'Walk-in' }}',
                                time: '{{ $order->ordered_at?->format('H:i') ?? '—' }}'
                              })"
                             class="inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-700">
@@ -348,7 +348,8 @@
                       d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               <span x-show="!hasBeenPrinted('resmi')">Struk Resmi</span>
-              <span x-show="hasBeenPrinted('resmi')" class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
+              <span x-show="hasBeenPrinted('resmi')"
+                    class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
             </button>
 
             <!-- Kitchen -->
@@ -367,7 +368,8 @@
                       d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               <span x-show="!hasBeenPrinted('kitchen')">Kitchen</span>
-              <span x-show="hasBeenPrinted('kitchen')" class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
+              <span x-show="hasBeenPrinted('kitchen')"
+                    class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
             </button>
 
             <!-- Bar -->
@@ -386,7 +388,8 @@
                       d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               <span x-show="!hasBeenPrinted('bar')">Bar</span>
-              <span x-show="hasBeenPrinted('bar')" class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
+              <span x-show="hasBeenPrinted('bar')"
+                    class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
             </button>
 
             <!-- Checker Meja -->
@@ -405,7 +408,8 @@
                       d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               <span x-show="!hasBeenPrinted('checker')">Checker Meja</span>
-              <span x-show="hasBeenPrinted('checker')" class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
+              <span x-show="hasBeenPrinted('checker')"
+                    class="text-amber-300 text-xs font-bold">↺ Cetak Ulang</span>
             </button>
           </div>
 
@@ -437,76 +441,84 @@
     </div>
 
 
-  {{-- Auth Modal for Reprint --}}
-  <div x-show="showAuthModal"
-       x-transition.opacity
-       style="display: none;"
-       class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4"
-       @click.self="showAuthModal = false; authCode = ''; authError = '';">
-    <div class="w-full max-w-sm rounded-2xl bg-white shadow-2xl">
-      <div class="px-6 pt-6 pb-4">
-        <div class="mb-4 flex items-center gap-3">
-          <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
-            <svg class="h-5 w-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
+    {{-- Auth Modal for Reprint --}}
+    <div x-show="showAuthModal"
+         x-transition.opacity
+         style="display: none;"
+         class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4"
+         @click.self="showAuthModal = false; authCode = ''; authError = '';">
+      <div class="w-full max-w-sm rounded-2xl bg-white shadow-2xl">
+        <div class="px-6 pt-6 pb-4">
+          <div class="mb-4 flex items-center gap-3">
+            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
+              <svg class="h-5 w-5 text-amber-600"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-gray-900">Autentikasi Diperlukan</h3>
+              <p class="text-xs text-gray-500">Masukkan kode harian untuk cetak ulang</p>
+            </div>
           </div>
-          <div>
-            <h3 class="text-base font-semibold text-gray-900">Autentikasi Diperlukan</h3>
-            <p class="text-xs text-gray-500">Masukkan kode harian untuk cetak ulang</p>
-          </div>
-        </div>
 
-        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          Dokumen ini sudah pernah dicetak sebelumnya. Cetak ulang memerlukan kode otorisasi harian.
-        </div>
-
-        <div class="mb-4 space-y-1.5 rounded-lg bg-gray-50 p-3 text-xs">
-          <div class="flex justify-between">
-            <span class="text-gray-500">No. Transaksi</span>
-            <span class="font-medium text-gray-800" x-text="selectedOrder?.displayId ?? '-'"></span>
+          <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            Dokumen ini sudah pernah dicetak sebelumnya. Cetak ulang memerlukan kode otorisasi harian.
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">Jenis Cetak</span>
-            <span class="font-medium capitalize text-gray-800" x-text="{
+
+          <div class="mb-4 space-y-1.5 rounded-lg bg-gray-50 p-3 text-xs">
+            <div class="flex justify-between">
+              <span class="text-gray-500">No. Transaksi</span>
+              <span class="font-medium text-gray-800"
+                    x-text="selectedOrder?.displayId ?? '-'"></span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Jenis Cetak</span>
+              <span class="font-medium capitalize text-gray-800"
+                    x-text="{
               'resmi': 'Struk Resmi',
               'kitchen': 'Kitchen',
               'bar': 'Bar',
               'checker': 'Checker Meja'
             }[pendingPrintType] ?? pendingPrintType"></span>
+            </div>
           </div>
+
+          <div class="mb-1">
+            <label class="mb-1.5 block text-xs font-medium text-gray-700">Kode Harian (4 digit)</label>
+            <input x-model="authCode"
+                   @keydown.enter="verifyAndPrint()"
+                   type="password"
+                   inputmode="numeric"
+                   maxlength="4"
+                   placeholder="••••"
+                   class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-center text-2xl tracking-[0.5em] focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none" />
+          </div>
+          <p x-show="authError"
+             x-text="authError"
+             style="display: none;"
+             class="mb-2 text-center text-xs font-medium text-red-600"></p>
         </div>
 
-        <div class="mb-1">
-          <label class="mb-1.5 block text-xs font-medium text-gray-700">Kode Harian (4 digit)</label>
-          <input x-model="authCode"
-                 @keydown.enter="verifyAndPrint()"
-                 type="password"
-                 inputmode="numeric"
-                 maxlength="4"
-                 placeholder="••••"
-                 class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-center text-2xl tracking-[0.5em] focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none" />
+        <div class="flex gap-2 border-t border-gray-100 px-6 pb-6 pt-4">
+          <button @click="showAuthModal = false; authCode = ''; authError = '';"
+                  class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Batal
+          </button>
+          <button @click="verifyAndPrint()"
+                  :disabled="authCode.length !== 4 || isVerifyingAuth"
+                  class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <span x-show="!isVerifyingAuth">Verifikasi & Cetak</span>
+            <span x-show="isVerifyingAuth">Memverifikasi...</span>
+          </button>
         </div>
-        <p x-show="authError"
-           x-text="authError"
-           style="display: none;"
-           class="mb-2 text-center text-xs font-medium text-red-600"></p>
-      </div>
-
-      <div class="flex gap-2 border-t border-gray-100 px-6 pb-6 pt-4">
-        <button @click="showAuthModal = false; authCode = ''; authError = '';"
-                class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-          Batal
-        </button>
-        <button @click="verifyAndPrint()"
-                :disabled="authCode.length !== 4 || isVerifyingAuth"
-                class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
-          <span x-show="!isVerifyingAuth">Verifikasi & Cetak</span>
-          <span x-show="isVerifyingAuth">Memverifikasi...</span>
-        </button>
       </div>
     </div>
-  </div>
 
   </div>
   <script>
@@ -576,7 +588,9 @@
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ code: this.authCode }),
+              body: JSON.stringify({
+                code: this.authCode
+              }),
             });
             const data = await res.json();
             if (data.valid) {
@@ -608,7 +622,10 @@
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ type, is_reprint: isReprint }),
+              body: JSON.stringify({
+                type,
+                is_reprint: isReprint
+              }),
             });
             const data = await res.json();
             this.toastSuccess = data.success;
@@ -620,7 +637,9 @@
                 this.printedKeys.push(key);
               }
               if (this.toastTimer) clearTimeout(this.toastTimer);
-              this.toastTimer = setTimeout(() => { this.toastMessage = ''; }, 3000);
+              this.toastTimer = setTimeout(() => {
+                this.toastMessage = '';
+              }, 3000);
             }
           } catch (e) {
             this.toastSuccess = false;

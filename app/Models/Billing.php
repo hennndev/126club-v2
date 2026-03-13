@@ -13,6 +13,8 @@ class Billing extends Model
         'subtotal',
         'tax',
         'tax_percentage',
+        'service_charge',
+        'service_charge_percentage',
         'discount_amount',
         'grand_total',
         'paid_amount',
@@ -21,6 +23,8 @@ class Billing extends Model
         'payment_method',
         'notes',
         'closing_notes',
+        'accurate_so_number',
+        'accurate_inv_number',
     ];
 
     protected $casts = [
@@ -29,6 +33,8 @@ class Billing extends Model
         'subtotal' => 'decimal:2',
         'tax' => 'decimal:2',
         'tax_percentage' => 'decimal:2',
+        'service_charge' => 'decimal:2',
+        'service_charge_percentage' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'paid_amount' => 'decimal:2',

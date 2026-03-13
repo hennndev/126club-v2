@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Waiter;
 
 use App\Http\Controllers\Controller;
 use App\Models\Area;
-use App\Models\BomRecipe;
+use App\Models\GeneralSetting;
 use App\Models\InventoryItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -29,15 +29,16 @@ class WaiterController extends Controller
 
     public function activeTables(): View
     {
-        $sessions = TableSession::with(['table.area', 'customer.profile'])
+        $sessions = TableSession::with(['table.area', 'customer.profile', 'billing'])
             ->withSum(['orders as total_spent' => fn ($q) => $q->whereNotIn('status', ['cancelled'])], 'total')
             ->where('status', 'active')
             ->orderByDesc('checked_in_at')
             ->get();
 
         $areas = Area::where('is_active', true)->orderBy('sort_order')->get();
+        $generalSettings = GeneralSetting::instance();
 
-        return view('waiter.active-tables', compact('sessions', 'areas'));
+        return view('waiter.active-tables', compact('sessions', 'areas', 'generalSettings'));
     }
 
     public function updatePax(Request $request, TableSession $session): JsonResponse
@@ -53,31 +54,18 @@ class WaiterController extends Controller
 
     public function pos(): View
     {
-        $bomProducts = BomRecipe::with('inventoryItem')
-            ->whereHas('inventoryItem', fn ($q) => $q->whereIn('category_type', ['food', 'bar']))
-            ->where('is_available', true)
-            ->get()
-            ->map(fn ($bom) => [
-                'id' => 'bom_'.$bom->id,
-                'bom_id' => $bom->id,
-                'name' => $bom->inventoryItem->name ?? '',
-                'category' => $bom->inventoryItem->category_type ?? 'food',
-                'price' => (float) $bom->selling_price,
-                'type' => 'bom',
-            ]);
-
-        $beverages = InventoryItem::where('category_type', 'beverage')
+        $products = InventoryItem::whereIn('category_type', ['food', 'bar', 'beverage'])
             ->where('is_active', true)
             ->get()
             ->map(fn ($item) => [
-                'id' => 'inv_'.$item->id,
+                'id' => 'item_'.$item->id,
                 'name' => $item->name,
-                'category' => 'beverage',
+                'category' => $item->category_type,
                 'price' => (float) $item->price,
-                'type' => 'inventory',
-            ]);
-
-        $products = $bomProducts->merge($beverages)->sortBy('name')->values();
+                'type' => 'item',
+            ])
+            ->sortBy('name')
+            ->values();
 
         $activeSessions = TableSession::with(['table.area', 'customer.profile'])
             ->where('status', 'active')
@@ -156,6 +144,7 @@ class WaiterController extends Controller
             'items.inventoryItem',
             'tableSession.table',
             'tableSession.customer.profile',
+            'customer.user',
         ])->whereNotIn('status', ['cancelled'])
             ->whereHas('tableSession', fn ($q) => $q->whereIn('table_id', $assignedTableIds));
 

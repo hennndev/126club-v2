@@ -9,11 +9,11 @@ class BarOrderItem extends Model
 {
     protected $fillable = [
         'bar_order_id',
-        'bom_recipe_id',
         'inventory_item_id',
         'quantity',
         'price',
         'is_completed',
+        'notes',
     ];
 
     protected $casts = [
@@ -26,23 +26,13 @@ class BarOrderItem extends Model
         return $this->belongsTo(BarOrder::class);
     }
 
-    public function recipe(): BelongsTo
-    {
-        return $this->belongsTo(BomRecipe::class, 'bom_recipe_id');
-    }
-
     public function inventoryItem(): BelongsTo
     {
         return $this->belongsTo(InventoryItem::class);
     }
 
-    /**
-     * Resolve the display name regardless of whether this is a BOM or direct inventory item.
-     */
     public function getItemNameAttribute(): string
     {
-        return $this->recipe?->inventoryItem?->name
-            ?? $this->inventoryItem?->name
-            ?? 'Item';
+        return $this->inventoryItem?->name ?? 'Item';
     }
 }

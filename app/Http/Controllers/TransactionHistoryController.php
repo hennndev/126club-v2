@@ -21,12 +21,16 @@ class TransactionHistoryController extends Controller
             'tableSession.table',
             'tableSession.reservation',
             'tableSession.customer.profile',
+            'customer.user',
         ])->whereNotIn('status', ['cancelled']);
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('order_number', 'like', '%'.$request->search.'%')
                     ->orWhereHas('tableSession.customer', function ($q2) use ($request) {
+                        $q2->where('name', 'like', '%'.$request->search.'%');
+                    })
+                    ->orWhereHas('customer.user', function ($q2) use ($request) {
                         $q2->where('name', 'like', '%'.$request->search.'%');
                     });
             });

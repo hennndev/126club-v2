@@ -8,10 +8,11 @@ class KitchenOrderItem extends Model
 {
     protected $fillable = [
         'kitchen_order_id',
-        'bom_recipe_id',
+        'inventory_item_id',
         'quantity',
         'price',
         'is_completed',
+        'notes',
     ];
 
     protected $casts = [
@@ -25,8 +26,8 @@ class KitchenOrderItem extends Model
         return $this->belongsTo(KitchenOrder::class);
     }
 
-    public function recipe()
+    public function inventoryItem()
     {
-        return $this->belongsTo(BomRecipe::class, 'bom_recipe_id');
+        return $this->belongsTo(InventoryItem::class);
     }
 }

@@ -17,7 +17,7 @@ class BarController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->orderBy('created_at', 'desc');
 
         if ($status === 'proses') {
@@ -53,7 +53,7 @@ class BarController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->orderBy('created_at', 'desc');
 
         if ($status === 'proses') {
@@ -97,7 +97,7 @@ class BarController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->find($item->bar_order_id);
 
         return response()->json([
@@ -129,7 +129,7 @@ class BarController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->find($orderId);
 
         return response()->json([
@@ -166,10 +166,10 @@ class BarController extends Controller
             'items' => $order->items->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'recipe_id' => $item->bom_recipe_id,
-                    'recipe_name' => $item->recipe?->inventoryItem?->name ?? 'Unknown',
+                    'item_name' => $item->inventoryItem?->name ?? 'Unknown',
                     'quantity' => $item->quantity,
                     'is_completed' => $item->is_completed,
+                    'notes' => $item->notes,
                 ];
             }),
         ];

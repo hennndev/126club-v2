@@ -11,7 +11,7 @@ class KitchenController extends Controller
 {
     public function index(Request $request)
     {
-        $query = KitchenOrder::with(['customer.user', 'customer.profile', 'table.area', 'items.recipe.inventoryItem']);
+        $query = KitchenOrder::with(['customer.user', 'customer.profile', 'table.area', 'items.inventoryItem']);
 
         // Filter by status
         if ($request->has('status') && in_array($request->status, ['baru', 'proses', 'selesai'])) {
@@ -41,7 +41,7 @@ class KitchenController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->latest();
 
         // Filter by status
@@ -80,7 +80,7 @@ class KitchenController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->find($item->kitchen_order_id);
 
         return response()->json([
@@ -107,7 +107,7 @@ class KitchenController extends Controller
             'customer.user',
             'customer.profile',
             'table.area',
-            'items.recipe.inventoryItem',
+            'items.inventoryItem',
         ])->find($order->id);
 
         return response()->json([
@@ -144,10 +144,10 @@ class KitchenController extends Controller
             'items' => $order->items->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'recipe_id' => $item->bom_recipe_id,
-                    'recipe_name' => $item->recipe?->inventoryItem?->name ?? 'Unknown',
+                    'item_name' => $item->inventoryItem?->name ?? 'Unknown',
                     'quantity' => $item->quantity,
                     'is_completed' => $item->is_completed,
+                    'notes' => $item->notes,
                 ];
             }),
         ];

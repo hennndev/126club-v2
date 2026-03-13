@@ -3,7 +3,6 @@
 use App\Http\Controllers\AccurateController;
 use App\Http\Controllers\AreaController;
 use App\Http\Controllers\BarController;
-use App\Http\Controllers\BomController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerKeepController;
 use App\Http\Controllers\KitchenController;
@@ -12,6 +11,7 @@ use App\Http\Controllers\RewardController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Settings\ClubHoursController;
 use App\Http\Controllers\Settings\DailyAuthCodeController;
+use App\Http\Controllers\Settings\GeneralSettingController;
 use App\Http\Controllers\Settings\PosCategorySettingController;
 use App\Http\Controllers\Settings\TierSettingsController;
 use App\Http\Controllers\TransactionCheckerController;
@@ -111,10 +111,8 @@ Route::middleware('auth')->group(function () {
         // Inventory Management
         require __DIR__.'/inventories.php';
 
-        // BOM Management
-        Route::resource('bom', BomController::class)->except(['show', 'create', 'edit']);
-        Route::patch('bom/{bom}/toggle-status', [BomController::class, 'toggleStatus'])->name('bom.toggleStatus');
-        Route::patch('bom/{bom}/toggle-availability', [BomController::class, 'toggleAvailability'])->name('bom.toggleAvailability');
+        // Menu Management
+        require __DIR__.'/menus.php';
 
         // Point of Sale
         require __DIR__.'/pos.php';
@@ -185,6 +183,12 @@ Route::middleware('auth')->group(function () {
         Route::prefix('settings/pos-categories')->name('settings.pos-categories.')->group(function () {
             Route::get('/', [PosCategorySettingController::class, 'index'])->name('index');
             Route::post('/', [PosCategorySettingController::class, 'save'])->name('save');
+        });
+
+        // General Settings (tax & service charge)
+        Route::prefix('settings/general')->name('settings.general.')->group(function () {
+            Route::get('/', [GeneralSettingController::class, 'index'])->name('index');
+            Route::put('/', [GeneralSettingController::class, 'update'])->name('update');
         });
     });
 });

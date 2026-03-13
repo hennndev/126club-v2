@@ -16,6 +16,9 @@ Route::post('pos/assign-waiter/{booking}', [PosController::class, 'assignWaiterF
 Route::get('pos/walk-in/search-customers', [PosController::class, 'walkInSearchCustomers'])->name('pos.walk-in.search-customers');
 Route::post('pos/walk-in/create-customer', [PosController::class, 'walkInCreateCustomer'])->name('pos.walk-in.create-customer');
 
+// Receipt preview
+Route::get('pos/orders/{order}/receipt', [PosController::class, 'orderReceipt'])->name('pos.order-receipt');
+
 // Printer integration
 Route::post('pos/print-receipt/{order?}', [PosController::class, 'printReceipt'])->name('pos.print-receipt');
 Route::post('pos/test-print', [PosController::class, 'testPrint'])->name('pos.test-print');

@@ -100,7 +100,7 @@
       </div>
     @endcanany
 
-    @canany(['admin.pos.*', 'admin.bookings.*', 'admin.transaction-history.*', 'admin.transaction-checker.*'])
+    @canany(['admin.pos.*', 'admin.bookings.*', 'admin.transaction-history.*'])
       <!-- TRANSACTION -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Transaction</h3>
@@ -156,27 +156,10 @@
             Riwayat Transaksi
           </x-nav-link>
         @endcan
-        @can('admin.transaction-checker.*')
-          <x-nav-link href="{{ route('admin.transaction-checker.index') }}"
-                      :active="request()->routeIs('admin.transaction-checker.*')">
-            <x-slot name="icon">
-              <svg class="w-5 h-5"
-                   fill="none"
-                   stroke="currentColor"
-                   viewBox="0 0 24 24">
-                <path stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            </x-slot>
-            Transaction Checker
-          </x-nav-link>
-        @endcan
       </div>
     @endcanany
 
-    @canany(['admin.inventory.*', 'admin.kitchen.*', 'admin.bar.*', 'admin.bom.*', 'admin.stock-opname.*'])
+    @canany(['admin.inventory.*', 'admin.menus.*', 'admin.stock-opname.*'])
       <!-- PRODUCTION -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Production</h3>
@@ -197,6 +180,47 @@
             Warehouse
           </x-nav-link>
         @endcan
+        @can('admin.menus.*')
+          <x-nav-link href="{{ route('admin.menus.index') }}"
+                      :active="request()->routeIs('admin.menus.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </x-slot>
+            Menu
+          </x-nav-link>
+        @endcan
+        @can('admin.stock-opname.*')
+          <x-nav-link href="{{ route('admin.stock-opname.index') }}"
+                      :active="request()->routeIs('admin.stock-opname.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            </x-slot>
+            Stock Opname
+          </x-nav-link>
+        @endcan
+      </div>
+    @endcanany
+
+    @canany(['admin.kitchen.*', 'admin.bar.*', 'admin.transaction-checker.*'])
+      <!-- ORDER CHECKER -->
+      <div class="mb-6">
+        <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Order Checker</h3>
         @can('admin.kitchen.*')
           <x-nav-link href="{{ route('admin.kitchen.index') }}"
                       :active="request()->routeIs('admin.kitchen.*')">
@@ -231,9 +255,9 @@
             Bar
           </x-nav-link>
         @endcan
-        @can('admin.bom.*')
-          <x-nav-link href="{{ route('admin.bom.index') }}"
-                      :active="request()->routeIs('admin.bom.*')">
+        @can('admin.transaction-checker.*')
+          <x-nav-link href="{{ route('admin.transaction-checker.index') }}"
+                      :active="request()->routeIs('admin.transaction-checker.*')">
             <x-slot name="icon">
               <svg class="w-5 h-5"
                    fill="none"
@@ -242,27 +266,10 @@
                 <path stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </x-slot>
-            BOM
-          </x-nav-link>
-        @endcan
-        @can('admin.stock-opname.*')
-          <x-nav-link href="{{ route('admin.stock-opname.index') }}"
-                      :active="request()->routeIs('admin.stock-opname.*')">
-            <x-slot name="icon">
-              <svg class="w-5 h-5"
-                   fill="none"
-                   stroke="currentColor"
-                   viewBox="0 0 24 24">
-                <path stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-              </svg>
-            </x-slot>
-            Stock Opname
+            Transaction Checker
           </x-nav-link>
         @endcan
       </div>

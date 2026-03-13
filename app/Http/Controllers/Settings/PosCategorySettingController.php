@@ -23,7 +23,6 @@ class PosCategorySettingController extends Controller
     {
         $validated = $request->validate([
             'categories' => 'present|array',
-            'categories.*.source' => 'required|in:bom,inventory,both',
             'categories.*.preparation_location' => 'required|in:kitchen,bar,direct',
         ]);
 
@@ -32,7 +31,6 @@ class PosCategorySettingController extends Controller
                 ['category_type' => $categoryType],
                 [
                     'show_in_pos' => isset($request->input('show_in_pos', [])[$categoryType]),
-                    'source' => $data['source'],
                     'preparation_location' => $data['preparation_location'],
                 ]
             );

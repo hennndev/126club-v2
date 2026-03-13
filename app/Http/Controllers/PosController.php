@@ -6,7 +6,6 @@ use App\Models\Area;
 use App\Models\BarOrder;
 use App\Models\BarOrderItem;
 use App\Models\Billing;
-use App\Models\BomRecipe;
 use App\Models\CustomerUser;
 use App\Models\InventoryItem;
 use App\Models\KitchenOrder;
@@ -21,56 +20,38 @@ use App\Models\TableSession;
 use App\Models\Tier;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Services\AccurateService;
 use App\Services\PrinterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PosController extends Controller
 {
     public function __construct(
-        protected PrinterService $printerService
+        protected PrinterService $printerService,
+        protected AccurateService $accurateService,
     ) {}
 
     public function index(Request $request)
     {
         $posSettings = PosCategorySetting::allKeyed()->filter(fn ($s) => $s->show_in_pos);
 
-        $bomTypes = $posSettings->filter(fn ($s) => in_array($s->source, ['bom', 'both']))->keys()->values()->all();
-        $inventoryTypes = $posSettings->filter(fn ($s) => in_array($s->source, ['inventory', 'both']))->keys()->values()->all();
-
-        // Get BOM recipes for configured category types
-        $bomQuery = BomRecipe::with('inventoryItem')
-            ->whereHas('inventoryItem', fn ($q) => $q->whereIn('category_type', $bomTypes ?: ['__none__']));
+        $allTypes = $posSettings->keys()->values()->all();
 
         // Get inventory items for configured category types
-        $inventoryQuery = InventoryItem::whereIn('category_type', $inventoryTypes ?: ['__none__']);
+        $inventoryQuery = InventoryItem::whereIn('category_type', $allTypes ?: ['__none__']);
 
         // Search functionality
         if ($request->filled('search')) {
-            $bomQuery->whereHas('inventoryItem', function ($q) use ($request) {
-                $q->where('name', 'like', '%'.$request->search.'%');
-            });
             $inventoryQuery->where('name', 'like', '%'.$request->search.'%');
         }
 
-        // Map BOM recipes to product format
-        $bomProducts = $bomQuery->get()->map(function ($bom) {
-            return [
-                'id' => 'bom_'.$bom->id,
-                'bom_id' => $bom->id,
-                'name' => $bom->inventoryItem->name ?? 'Unknown',
-                'category' => $bom->inventoryItem->category_type ?? 'food',
-                'price' => $bom->selling_price,
-                'type' => 'bom',
-                'is_available' => $bom->is_available,
-            ];
-        });
-
         // Map inventory items to product format
-        $inventoryProducts = $inventoryQuery->get()->map(function ($item) {
+        $products = $inventoryQuery->get()->map(function ($item) {
             return [
                 'id' => 'item_'.$item->id,
                 'item_id' => $item->id,
@@ -80,11 +61,7 @@ class PosController extends Controller
                 'stock' => $item->stock_quantity ?? 0,
                 'type' => 'item',
             ];
-        });
-
-        // Combine both collections and reset keys
-        $bomProducts = collect($bomProducts); // walaupun []
-        $products = $bomProducts->merge($inventoryProducts)->values();
+        })->values();
 
         // Get cart from session
         $cart = session()->get('pos_cart', []);
@@ -245,6 +222,7 @@ class PosController extends Controller
             'tableSession.table.area',
             'tableSession.reservation.customer.profile',
             'tableSession.reservation.customer.customerUser',
+            'customer.user',
         ])
             ->latest()
             ->limit(20)
@@ -254,6 +232,7 @@ class PosController extends Controller
                 $customer = $session?->reservation?->customer;
                 $customerName = $customer?->profile?->name
                     ?? $customer?->customerUser?->name
+                    ?? $order->customer?->user?->name
                     ?? 'Walk-in';
 
                 return [
@@ -294,51 +273,24 @@ class PosController extends Controller
     {
         $posSettings = PosCategorySetting::allKeyed();
 
-        // Check if it's a BOM or inventory item
-        if (str_starts_with($productId, 'bom_')) {
-            // BOM Recipe
-            $bomId = str_replace('bom_', '', $productId);
-            $bom = BomRecipe::with('inventoryItem')->find($bomId);
+        $itemId = str_replace('item_', '', $productId);
+        $inventoryItem = InventoryItem::find($itemId);
+        $setting = $posSettings->get($inventoryItem?->category_type);
 
-            $categoryType = $bom?->inventoryItem?->category_type;
-            $setting = $posSettings->get($categoryType);
-
-            if (! $bom || ! $bom->inventoryItem || ! $setting || ! $setting->show_in_pos || ! in_array($setting->source, ['bom', 'both'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Product not found',
-                ], 404);
-            }
-
-            $product = [
-                'id' => $productId,
-                'name' => $bom->inventoryItem->name,
-                'price' => $bom->selling_price,
-                'type' => 'bom',
-                'preparation_location' => $setting->preparation_location,
-            ];
-        } else {
-            // Inventory Item
-            $itemId = str_replace('item_', '', $productId);
-            $inventoryItem = InventoryItem::find($itemId);
-
-            $setting = $posSettings->get($inventoryItem?->category_type);
-
-            if (! $inventoryItem || ! $setting || ! $setting->show_in_pos || ! in_array($setting->source, ['inventory', 'both'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Product not found',
-                ], 404);
-            }
-
-            $product = [
-                'id' => $productId,
-                'name' => $inventoryItem->name,
-                'price' => $inventoryItem->price ?? 0,
-                'type' => 'item',
-                'preparation_location' => $setting->preparation_location,
-            ];
+        if (! $inventoryItem || ! $setting || ! $setting->show_in_pos) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found',
+            ], 404);
         }
+
+        $product = [
+            'id' => $productId,
+            'name' => $inventoryItem->name,
+            'price' => $inventoryItem->price ?? 0,
+            'type' => 'item',
+            'preparation_location' => $setting->preparation_location,
+        ];
 
         $cart = session()->get('pos_cart', []);
 
@@ -409,6 +361,8 @@ class PosController extends Controller
             'discount_percentage' => 'nullable|integer|min:0|max:100',
         ]);
 
+        $cartNotes = $request->input('cart_notes', []);
+
         $cart = session()->get('pos_cart', []);
 
         if (empty($cart)) {
@@ -462,34 +416,18 @@ class PosController extends Controller
 
                 // Create Order Items from cart
                 foreach ($cart as $productId => $cartItem) {
-                    // Determine if BOM or Inventory Item
-                    if (str_starts_with($productId, 'bom_')) {
-                        $bomId = str_replace('bom_', '', $productId);
-                        $bom = BomRecipe::with('inventoryItem')->find($bomId);
+                    $itemId = str_replace('item_', '', $productId);
+                    $inventoryItem = InventoryItem::find($itemId);
 
-                        if (! $bom || ! $bom->inventoryItem) {
-                            continue;
-                        }
-
-                        $inventoryItemId = $bom->inventory_item_id;
-                        $itemName = $bom->inventoryItem->name;
-                        $itemCode = $bom->inventoryItem->code;
-                        $price = $bom->selling_price;
-                        $categoryType = $bom->inventoryItem->category_type;
-                    } else {
-                        $itemId = str_replace('item_', '', $productId);
-                        $inventoryItem = InventoryItem::find($itemId);
-
-                        if (! $inventoryItem) {
-                            continue;
-                        }
-
-                        $inventoryItemId = $inventoryItem->id;
-                        $itemName = $inventoryItem->name;
-                        $itemCode = $inventoryItem->code;
-                        $price = $inventoryItem->price;
-                        $categoryType = $inventoryItem->category_type;
+                    if (! $inventoryItem) {
+                        continue;
                     }
+
+                    $inventoryItemId = $inventoryItem->id;
+                    $itemName = $inventoryItem->name;
+                    $itemCode = $inventoryItem->code;
+                    $price = $inventoryItem->price;
+                    $categoryType = $inventoryItem->category_type;
 
                     $posSettings = PosCategorySetting::allKeyed();
                     $preparationLocation = $posSettings->get($categoryType)?->preparation_location ?? $cartItem['preparation_location'] ?? 'bar';
@@ -510,7 +448,10 @@ class PosController extends Controller
                         'discount_amount' => 0,
                         'preparation_location' => $preparationLocation,
                         'status' => 'pending',
+                        'notes' => $cartNotes[$productId] ?? null,
                     ]);
+
+                    $this->decrementInventoryStock($inventoryItem, $quantity);
                 }
 
                 // Apply tier discount
@@ -581,6 +522,7 @@ class PosController extends Controller
 
                 $order = Order::create([
                     'table_session_id' => null,
+                    'customer_user_id' => $customerUser?->id,
                     'created_by' => auth()->id(),
                     'order_number' => $orderNumber,
                     'status' => 'pending',
@@ -593,29 +535,16 @@ class PosController extends Controller
                 $itemsTotal = 0;
 
                 foreach ($cart as $productId => $cartItem) {
-                    if (str_starts_with($productId, 'bom_')) {
-                        $bomId = str_replace('bom_', '', $productId);
-                        $bom = BomRecipe::with('inventoryItem')->find($bomId);
-                        if (! $bom || ! $bom->inventoryItem) {
-                            continue;
-                        }
-                        $inventoryItemId = $bom->inventory_item_id;
-                        $itemName = $bom->inventoryItem->name;
-                        $itemCode = $bom->inventoryItem->code;
-                        $price = $bom->selling_price;
-                        $categoryType = $bom->inventoryItem->category_type;
-                    } else {
-                        $itemId = str_replace('item_', '', $productId);
-                        $inventoryItem = InventoryItem::find($itemId);
-                        if (! $inventoryItem) {
-                            continue;
-                        }
-                        $inventoryItemId = $inventoryItem->id;
-                        $itemName = $inventoryItem->name;
-                        $itemCode = $inventoryItem->code;
-                        $price = $inventoryItem->price;
-                        $categoryType = $inventoryItem->category_type;
+                    $itemId = str_replace('item_', '', $productId);
+                    $inventoryItem = InventoryItem::find($itemId);
+                    if (! $inventoryItem) {
+                        continue;
                     }
+                    $inventoryItemId = $inventoryItem->id;
+                    $itemName = $inventoryItem->name;
+                    $itemCode = $inventoryItem->code;
+                    $price = $inventoryItem->price;
+                    $categoryType = $inventoryItem->category_type;
 
                     $preparationLocation = $posSettings->get($categoryType)?->preparation_location ?? $cartItem['preparation_location'] ?? 'bar';
                     $quantity = $cartItem['quantity'];
@@ -633,7 +562,10 @@ class PosController extends Controller
                         'discount_amount' => 0,
                         'preparation_location' => $preparationLocation,
                         'status' => 'pending',
+                        'notes' => $cartNotes[$productId] ?? null,
                     ]);
+
+                    $this->decrementInventoryStock($inventoryItem, $quantity);
                 }
 
                 $discountAmount = (int) round($itemsTotal * $discountPercentage / 100);
@@ -651,6 +583,9 @@ class PosController extends Controller
                 DB::commit();
 
                 session()->forget('pos_cart');
+
+                // Push to Accurate: Sales Order + Sales Invoice (non-blocking)
+                $this->pushOrderToAccurate($order, $customerUser, $finalTotal);
 
                 // Always auto-print receipt for walk-in
                 $this->printOrderReceipt($order);
@@ -673,6 +608,20 @@ class PosController extends Controller
                 'message' => 'Terjadi kesalahan: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Show the receipt preview page for a POS order.
+     */
+    public function orderReceipt(Order $order): \Illuminate\View\View
+    {
+        $order->load(['items', 'customer.user', 'customer.profile']);
+
+        $customerName = $order->customer?->user?->name
+            ?? $order->customer?->profile?->name
+            ?? 'Walk-in';
+
+        return view('pos.receipt', compact('order', 'customerName'));
     }
 
     /**
@@ -822,18 +771,14 @@ class PosController extends Controller
 
             // Create kitchen order items
             foreach ($kitchenItems as $item) {
-                // Find the BOM recipe for this item
-                $bomRecipe = BomRecipe::where('inventory_item_id', $item->inventory_item_id)->first();
-
-                if ($bomRecipe) {
-                    KitchenOrderItem::create([
-                        'kitchen_order_id' => $kitchenOrder->id,
-                        'bom_recipe_id' => $bomRecipe->id,
-                        'quantity' => $item->quantity,
-                        'price' => $item->price,
-                        'is_completed' => false,
-                    ]);
-                }
+                KitchenOrderItem::create([
+                    'kitchen_order_id' => $kitchenOrder->id,
+                    'inventory_item_id' => $item->inventory_item_id,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'is_completed' => false,
+                    'notes' => $item->notes,
+                ]);
             }
 
             // Auto-print kitchen ticket if a printer is configured for 'kitchen' location
@@ -854,15 +799,13 @@ class PosController extends Controller
 
             // Create bar order items
             foreach ($barItems as $item) {
-                $bomRecipe = BomRecipe::where('inventory_item_id', $item->inventory_item_id)->first();
-
                 BarOrderItem::create([
                     'bar_order_id' => $barOrder->id,
-                    'bom_recipe_id' => $bomRecipe?->id,
-                    'inventory_item_id' => $bomRecipe ? null : $item->inventory_item_id,
+                    'inventory_item_id' => $item->inventory_item_id,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
                     'is_completed' => false,
+                    'notes' => $item->notes,
                 ]);
             }
 
@@ -937,6 +880,144 @@ class PosController extends Controller
 
         // 3. Final fallback to default printer
         return Printer::getDefault();
+    }
+
+    protected function decrementInventoryStock(InventoryItem $inventoryItem, int $quantity): void
+    {
+        $lockedItem = InventoryItem::query()
+            ->whereKey($inventoryItem->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $lockedItem || $quantity <= 0) {
+            return;
+        }
+
+        $lockedItem->decrement('stock_quantity', $quantity);
+    }
+
+    /**
+     * Push a walk-in order to Accurate as Sales Order + Sales Invoice.
+     * Failures are logged but do not interrupt the checkout response.
+     */
+    protected function pushOrderToAccurate(Order $order, ?CustomerUser $customerUser, int|float $finalTotal): void
+    {
+        try {
+            $order->load(['items.inventoryItem']);
+
+            if (! $customerUser) {
+                Log::warning('Accurate POS Sync: customer user not found, skipping', ['order_id' => $order->id]);
+
+                return;
+            }
+
+            $customerNo = $this->ensureAccurateCustomer($customerUser);
+
+            if (! $customerNo) {
+                Log::warning('Accurate POS Sync: customerNo not found after sync, skipping', ['order_id' => $order->id]);
+
+                return;
+            }
+
+            $transDate = $order->ordered_at->format('d/m/Y');
+
+            $detailItem = $order->items->map(function ($item) {
+                return [
+                    'itemNo' => $item->inventoryItem?->code ?? $item->item_code,
+                    'quantity' => $item->quantity,
+                    'unitPrice' => (float) $item->price,
+                    'discountPercent' => 0,
+                ];
+            })->values()->toArray();
+
+            // 1. Save Sales Order
+            $soPayload = [
+                'customerNo' => $customerNo,
+                'transDate' => $transDate,
+                'number' => $order->order_number,
+                'memo' => 'Walk-in POS — '.$order->order_number,
+                'detailItem' => $detailItem,
+            ];
+
+            $soResult = $this->accurateService->saveSalesOrder($soPayload);
+            $soNumber = $soResult['r']['number'] ?? $soResult['d']['number'] ?? null;
+
+            // 2. Save Sales Invoice
+            $invPayload = [
+                'customerNo' => $customerNo,
+                'transDate' => $transDate,
+                'memo' => 'Walk-in POS — '.$order->order_number,
+                'detailItem' => $detailItem,
+            ];
+
+            if ($soNumber) {
+                $invPayload['salesOrderNumber'] = $soNumber;
+            }
+
+            $invResult = $this->accurateService->saveSalesInvoice($invPayload);
+            $invNumber = $invResult['r']['number'] ?? $invResult['d']['number'] ?? null;
+
+            // 3. Persist Accurate numbers on the order record
+            $order->update([
+                'accurate_so_number' => $soNumber,
+                'accurate_inv_number' => $invNumber,
+            ]);
+
+            Log::info('Accurate POS Sync: OK', [
+                'order_id' => $order->id,
+                'so_number' => $soNumber,
+                'inv_number' => $invNumber,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Accurate POS Sync: FAILED', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function ensureAccurateCustomer(CustomerUser $customerUser): ?string
+    {
+        $customerUser->loadMissing(['user', 'profile']);
+
+        if ($customerUser->customer_code) {
+            return $customerUser->customer_code;
+        }
+
+        $user = $customerUser->user;
+
+        if (! $user) {
+            Log::warning('Accurate POS Sync: related user missing for customer sync', [
+                'customer_user_id' => $customerUser->id,
+            ]);
+
+            return null;
+        }
+
+        $payload = [
+            'name' => $user->name,
+            'email' => $user->email,
+        ];
+
+        $response = $this->accurateService->saveCustomer($payload);
+        $accurateId = $response['r']['id'] ?? $response['d']['id'] ?? null;
+        $customerNo = $response['r']['customerNo'] ?? $response['d']['customerNo'] ?? null;
+
+        if (! $customerNo) {
+            throw new \RuntimeException('Accurate customer number was not returned.');
+        }
+
+        $customerUser->update([
+            'accurate_id' => $accurateId,
+            'customer_code' => $customerNo,
+        ]);
+
+        Log::info('Accurate POS Sync: customer created for walk-in', [
+            'customer_user_id' => $customerUser->id,
+            'customer_no' => $customerNo,
+        ]);
+
+        return $customerNo;
     }
 
     /**

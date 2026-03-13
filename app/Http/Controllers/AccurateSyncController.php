@@ -142,44 +142,6 @@ class AccurateSyncController extends Controller
     }
 
     /**
-     * Manual sync BOM via button
-     */
-    public function syncBom(Request $request)
-    {
-        if (Cache::has('accurate_bom_sync_running')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sync BOM sedang berjalan. Mohon tunggu hingga selesai.',
-            ], 423);
-        }
-
-        try {
-            Cache::put('accurate_bom_sync_running', true, now()->addMinutes(5));
-            Artisan::call('accurate:sync-bom', ['--force' => true]);
-            $output = Artisan::output();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Sync BOM berhasil diselesaikan!',
-                'output' => $output,
-                'timestamp' => now()->format('Y-m-d H:i:s'),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Manual sync BOM failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Sync BOM gagal: '.$e->getMessage(),
-            ], 500);
-        } finally {
-            Cache::forget('accurate_bom_sync_running');
-        }
-    }
-
-    /**
      * Helper function to update .env file
      */
     protected function updateEnvFile($key, $value)

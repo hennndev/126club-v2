@@ -1,4 +1,5 @@
 <!-- Close Billing Modal -->
+@php $generalSettings = \App\Models\GeneralSetting::instance(); @endphp
 <div id="closeBillingModal"
      class="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 hidden">
   <div class="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-2xl sm:rounded-2xl shadow-xl"
@@ -57,6 +58,18 @@
           <span>Diskon</span>
           <span id="cbDiscount"
                 class="text-green-600">- Rp 0</span>
+        </div>
+        <div class="flex justify-between text-gray-600"
+             id="cbServiceChargeRow"
+             style="display:none!important">
+          <span id="cbServiceChargeLabel">Service Charge ({{ $generalSettings->service_charge_percentage }}%)</span>
+          <span id="cbServiceCharge">Rp 0</span>
+        </div>
+        <div class="flex justify-between text-gray-600"
+             id="cbTaxRow"
+             style="display:none!important">
+          <span id="cbTaxLabel">PPN ({{ $generalSettings->tax_percentage }}%)</span>
+          <span id="cbTax">Rp 0</span>
         </div>
         <div class="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900 text-base">
           <span>TOTAL</span>
@@ -145,6 +158,9 @@
 </div>
 
 <script>
+  const cbServiceChargePercentage = {{ $generalSettings->service_charge_percentage }};
+  const cbTaxPercentage = {{ $generalSettings->tax_percentage }};
+
   let closeBillingBookingId = null;
 
   function openCloseBillingModal(bookingId, minimumCharge, ordersTotal, discountAmount, grandTotal) {
@@ -154,7 +170,6 @@
 
     document.getElementById('cbMinimumCharge').textContent = fmt(minimumCharge);
     document.getElementById('cbOrdersTotal').textContent = fmt(ordersTotal);
-    document.getElementById('cbGrandTotal').textContent = fmt(grandTotal);
 
     const discountRow = document.getElementById('cbDiscountRow');
     if (discountAmount > 0) {
@@ -163,6 +178,34 @@
     } else {
       discountRow.style.setProperty('display', 'none', 'important');
     }
+
+    // Compute subtotal after discount
+    const subtotal = Math.max(minimumCharge, ordersTotal);
+    const afterDiscount = subtotal - discountAmount;
+
+    // Service charge
+    const serviceChargeRow = document.getElementById('cbServiceChargeRow');
+    const serviceChargeAmount = Math.round(afterDiscount * cbServiceChargePercentage / 100);
+    if (cbServiceChargePercentage > 0) {
+      document.getElementById('cbServiceCharge').textContent = fmt(serviceChargeAmount);
+      serviceChargeRow.style.removeProperty('display');
+    } else {
+      serviceChargeRow.style.setProperty('display', 'none', 'important');
+    }
+
+    // Tax
+    const taxRow = document.getElementById('cbTaxRow');
+    const taxAmount = Math.round((afterDiscount + serviceChargeAmount) * cbTaxPercentage / 100);
+    if (cbTaxPercentage > 0) {
+      document.getElementById('cbTax').textContent = fmt(taxAmount);
+      taxRow.style.removeProperty('display');
+    } else {
+      taxRow.style.setProperty('display', 'none', 'important');
+    }
+
+    // Grand total
+    const computedGrandTotal = afterDiscount + serviceChargeAmount + taxAmount;
+    document.getElementById('cbGrandTotal').textContent = fmt(computedGrandTotal);
 
     // Minimum charge warning
     const warning = document.getElementById('cbMinWarning');

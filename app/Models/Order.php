@@ -8,6 +8,7 @@ class Order extends Model
 {
     protected $fillable = [
         'table_session_id',
+        'customer_user_id',
         'created_by',
         'order_number',
         'status',
@@ -20,6 +21,8 @@ class Order extends Model
         'notes',
         'cancellation_reason',
         'cancelled_by',
+        'accurate_so_number',
+        'accurate_inv_number',
     ];
 
     protected $casts = [
@@ -35,6 +38,11 @@ class Order extends Model
     public function tableSession()
     {
         return $this->belongsTo(TableSession::class);
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(CustomerUser::class, 'customer_user_id');
     }
 
     public function items()

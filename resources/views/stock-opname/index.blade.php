@@ -21,19 +21,6 @@
         <p class="text-sm text-gray-500">Hitung dan sesuaikan stok inventaris</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap justify-end">
-        <button @click="resetForm()"
-                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition flex items-center gap-2">
-          <svg class="w-4 h-4"
-               fill="none"
-               stroke="currentColor"
-               viewBox="0 0 24 24">
-            <path stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Reset
-        </button>
         <button @click="showPrintModal = true"
                 class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2">
           <svg class="w-4 h-4"
@@ -47,19 +34,6 @@
           </svg>
           Print Form
         </button>
-        <a href="{{ route('admin.stock-opname.history') }}"
-           class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center gap-2">
-          <svg class="w-4 h-4"
-               fill="none"
-               stroke="currentColor"
-               viewBox="0 0 24 24">
-            <path stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Riwayat
-        </a>
       </div>
     </div>
 
@@ -156,10 +130,6 @@
             <option value="{{ $cat }}">{{ ucfirst($cat) }}</option>
           @endforeach
         </select>
-        <button @click="clearAllPhysical()"
-                class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition whitespace-nowrap">
-          Hapus Semua Input
-        </button>
       </div>
 
       <!-- Table -->
@@ -172,8 +142,7 @@
               <th class="px-4 py-3 text-left">Kategori</th>
               <th class="px-4 py-3 text-center">Satuan</th>
               <th class="px-4 py-3 text-center">Stock Sistem</th>
-              <th class="px-4 py-3 text-center w-36">Stock Fisik</th>
-              <th class="px-4 py-3 text-center w-24">Selisih</th>
+              <th class="px-4 py-3 text-center w-24">Selisih Fisik</th>
               <th class="px-4 py-3 text-left w-48">Catatan</th>
             </tr>
           </thead>
@@ -195,29 +164,8 @@
                     x-text="item.unit"></td>
                 <td class="px-4 py-3 text-center font-mono text-gray-700"
                     x-text="item.system_stock"></td>
-                <td class="px-4 py-3">
-                  <input type="number"
-                         x-model="item.physical_stock"
-                         min="0"
-                         placeholder="—"
-                         class="w-full text-center border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none font-mono" />
-                </td>
-                <td class="px-4 py-3 text-center font-mono font-semibold">
-                  <template x-if="item.physical_stock !== '' && item.physical_stock !== null">
-                    <span :class="getDifference(item) > 0 ? 'text-green-600' : getDifference(item) < 0 ? 'text-red-600' : 'text-gray-500'"
-                          x-text="(getDifference(item) > 0 ? '+' : '') + getDifference(item)">
-                    </span>
-                  </template>
-                  <template x-if="item.physical_stock === '' || item.physical_stock === null">
-                    <span class="text-gray-300">—</span>
-                  </template>
-                </td>
-                <td class="px-4 py-3">
-                  <input type="text"
-                         x-model="item.item_notes"
-                         placeholder="Catatan..."
-                         class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none" />
-                </td>
+                <td class="px-4 py-3 text-center text-gray-300 font-mono">—</td>
+                <td class="px-4 py-3 text-gray-400 text-sm italic">—</td>
               </tr>
             </template>
             <tr x-show="filteredItems().length === 0">
@@ -229,90 +177,12 @@
       </div>
 
       <!-- Actions -->
-      <div class="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="p-4 border-t border-gray-100 flex items-center justify-between gap-3">
         <p class="text-sm text-gray-500">
           Menampilkan <span class="font-medium"
                 x-text="filteredItems().length"></span> dari <span class="font-medium"
                 x-text="items.length"></span> produk
         </p>
-        <div class="flex gap-3">
-          <button @click="saveDraft()"
-                  :disabled="saving"
-                  class="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium disabled:opacity-50 flex items-center gap-2">
-            <svg x-show="saving"
-                 class="animate-spin w-4 h-4"
-                 fill="none"
-                 viewBox="0 0 24 24">
-              <circle class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"></circle>
-              <path class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-            <span x-text="saving ? 'Menyimpan...' : 'Simpan Draft'"></span>
-          </button>
-          <button @click="completeOpname()"
-                  :disabled="saving"
-                  class="px-5 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition font-medium disabled:opacity-50 flex items-center gap-2">
-            <svg x-show="saving"
-                 class="animate-spin w-4 h-4"
-                 fill="none"
-                 viewBox="0 0 24 24">
-              <circle class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"></circle>
-              <path class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-            <svg x-show="!saving"
-                 class="w-4 h-4"
-                 fill="none"
-                 stroke="currentColor"
-                 viewBox="0 0 24 24">
-              <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7" />
-            </svg>
-            <span x-text="saving ? 'Memproses...' : 'Selesai & Adjust Stock'"></span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Confirm Complete Modal -->
-    <div x-show="showConfirmModal"
-         x-transition.opacity
-         style="display: none;"
-         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div x-transition.scale
-           @click.stop
-           class="bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
-        <h3 class="text-lg font-bold text-gray-900 mb-2">Selesaikan Stock Opname?</h3>
-        <p class="text-sm text-gray-600 mb-2">
-          Tindakan ini akan menyesuaikan stok sistem dengan stok fisik yang sudah diisi.
-          Stok yang belum diisi tidak akan berubah.
-        </p>
-        <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-700">
-          <strong>Produk dengan input:</strong>
-          <span x-text="items.filter(i => i.physical_stock !== '' && i.physical_stock !== null).length"></span>
-          dari <span x-text="items.length"></span> produk.
-          Tindakan ini tidak dapat dibatalkan.
-        </div>
-        <div class="flex gap-3 justify-end">
-          <button @click="showConfirmModal = false"
-                  class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Batal</button>
-          <button @click="doComplete()"
-                  class="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition font-medium">Ya, Selesaikan</button>
-        </div>
       </div>
     </div>
 

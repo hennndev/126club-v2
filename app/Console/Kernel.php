@@ -16,31 +16,30 @@ class Kernel extends ConsoleKernel
         // Accurate Sync Configuration
         $syncIntervalMinutes = config('accurate.sync_interval_minutes');
         $syncIntervalHours = config('accurate.sync_interval_hours', 2);
-        
+
         // Sync master data (urutan penting: dependencies dulu)
         $task3 = $schedule->command('accurate:sync-customers --force');
         $task5 = $schedule->command('accurate:sync-items --force');
-        $task6 = $schedule->command('accurate:sync-boms --force');
         $task7 = $schedule->command('accurate:sync-work-orders --force');
         $task8 = $schedule->command('accurate:sync-sales-orders --force');
-        
+
         // Apply interval to all tasks
-        foreach ([$task3, $task5, $task6, $task7, $task8] as $task) {
+        foreach ([$task3, $task5, $task7, $task8] as $task) {
             // Jika ada setting menit (untuk testing), gunakan menit
             if ($syncIntervalMinutes) {
                 $task->everyMinute()
-                     ->when(function () use ($syncIntervalMinutes) {
-                         return now()->minute % $syncIntervalMinutes === 0;
-                     });
+                    ->when(function () use ($syncIntervalMinutes) {
+                        return now()->minute % $syncIntervalMinutes === 0;
+                    });
             } else {
                 // Gunakan jam (production)
                 $task->cron("0 */{$syncIntervalHours} * * *");
             }
-            
+
             $task->withoutOverlapping()
-                 ->runInBackground();
+                ->runInBackground();
         }
-        
+
         // Callbacks untuk task terakhir
         $task8->onSuccess(function () {
             Log::info('Accurate sync completed successfully');

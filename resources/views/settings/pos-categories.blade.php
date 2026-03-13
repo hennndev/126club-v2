@@ -25,7 +25,7 @@
     <!-- Header -->
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-slate-800">Kategori POS</h1>
-      <p class="text-sm text-slate-500 mt-1">Atur kategori mana yang tampil di POS, sumbernya, dan ke mana diarahkan</p>
+      <p class="text-sm text-slate-500 mt-1">Atur kategori mana yang tampil di POS dan ke mana diarahkan</p>
     </div>
 
     <!-- Info Box -->
@@ -33,7 +33,6 @@
       <p class="font-semibold mb-2">Petunjuk:</p>
       <ul class="space-y-1 list-disc list-inside">
         <li><strong>Tampil di POS</strong> — aktifkan agar kategori ini muncul di halaman POS.</li>
-        <li><strong>Sumber</strong> — <em>BOM</em>: dari resep BOM, <em>Inventory</em>: langsung dari stok, <em>Keduanya</em>: gabungan.</li>
         <li><strong>Arah</strong> — <em>Kitchen</em>: kirim ke dapur, <em>Bar</em>: kirim ke bar, <em>Langsung</em>: masuk transaksi saja tanpa order kitchen/bar.</li>
       </ul>
     </div>
@@ -52,7 +51,6 @@
               <tr>
                 <th class="px-5 py-3 text-left font-medium text-slate-600">Kategori</th>
                 <th class="px-5 py-3 text-center font-medium text-slate-600">Tampil di POS</th>
-                <th class="px-5 py-3 text-left font-medium text-slate-600">Sumber</th>
                 <th class="px-5 py-3 text-left font-medium text-slate-600">Arah</th>
               </tr>
             </thead>
@@ -78,19 +76,6 @@
                                   after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all
                                   peer-checked:after:translate-x-full"></div>
                     </label>
-                  </td>
-
-                  {{-- Sumber --}}
-                  <td class="px-5 py-3">
-                    <select name="categories[{{ $type }}][source]"
-                            class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                      <option value="bom"
-                              {{ !$s || $s->source === 'bom' ? 'selected' : '' }}>BOM (Resep)</option>
-                      <option value="inventory"
-                              {{ $s && $s->source === 'inventory' ? 'selected' : '' }}>Langsung Inventory</option>
-                      <option value="both"
-                              {{ $s && $s->source === 'both' ? 'selected' : '' }}>Keduanya</option>
-                    </select>
                   </td>
 
                   {{-- Arah --}}

@@ -230,6 +230,18 @@
       <span>- Rp {{ number_format($billing->discount_amount, 0, ',', '.') }}</span>
     </div>
   @endif
+  @if (($billing?->service_charge ?? 0) > 0)
+    <div class="total-row">
+      <span>Service Charge ({{ (int) ($billing->service_charge_percentage ?? 0) }}%)</span>
+      <span>Rp {{ number_format($billing->service_charge, 0, ',', '.') }}</span>
+    </div>
+  @endif
+  @if (($billing?->tax ?? 0) > 0)
+    <div class="total-row">
+      <span>PPN ({{ (int) ($billing->tax_percentage ?? 0) }}%)</span>
+      <span>Rp {{ number_format($billing->tax, 0, ',', '.') }}</span>
+    </div>
+  @endif
 
   <div class="two-col grand-total">
     <span>TOTAL</span>

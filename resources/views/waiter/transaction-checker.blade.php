@@ -160,7 +160,7 @@
                     @endif
                   </div>
                   <div class="mt-1 text-sm font-semibold text-gray-800">
-                    {{ $order->tableSession?->customer?->name ?? 'Guest' }}
+                    {{ $order->tableSession?->customer?->name ?? ($order->customer?->user?->name ?? 'Walk-in') }}
                   </div>
                   @if ($order->ordered_at)
                     <div class="text-xs text-gray-400 mt-0.5">{{ $order->ordered_at->format('H:i · d M Y') }}</div>

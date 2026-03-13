@@ -17,6 +17,7 @@ class TransactionCheckerController extends Controller
             'items',
             'tableSession.table',
             'tableSession.customer.profile',
+            'customer.user',
         ])->whereNotIn('status', ['cancelled']);
 
         if ($tab === 'proses') {

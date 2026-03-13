@@ -593,42 +593,6 @@ class AccurateService
         return $this->getList('manufacture-order', $request, []);
     }
 
-    // ===BOM SCOPED===
-    public function getBillOfMaterials(Request $request)
-    {
-        return $this->getList('bill-of-material', $request, []);
-    }
-
-    public function getDetailBillOfMaterial(int $id)
-    {
-        return $this->getDetail('bill-of-material', $id);
-    }
-
-    public function getWorkOrders(Request $request)
-    {
-        return $this->getList('work-order', $request, []);
-    }
-
-    public function getDetailWorkOrder(int $id)
-    {
-        return $this->getDetail('work-order', $id);
-    }
-
-    public function getWorkOrderDetail(int $id)
-    {
-        return $this->getDetail('work-order', $id);
-    }
-
-    public function saveBOM(array $data)
-    {
-        return $this->saveData('bill-of-material', $data, 'save');
-    }
-
-    public function deleteBOM(int $id)
-    {
-        return $this->deleteData('bill-of-material', $id);
-    }
-
     // ===WORK ORDER===
     public function saveWorkOrder(array $data)
     {
@@ -662,21 +626,70 @@ class AccurateService
         return $this->deleteData('finished-good-slip', $id);
     }
 
-    // OUTBOUND
-    public function getSalesOrders(Request $request)
+    // ===SALES ORDER SCOPED===
+
+    /** @var array Fields standar untuk list sales order */
+    protected array $salesOrderFields = [
+        'id', 'number', 'transDate', 'dueDate',
+        'customer.name', 'customer.no',
+        'totalAmount', 'status', 'memo',
+        'branchName',
+    ];
+
+    /** @var array Fields standar untuk list sales invoice */
+    protected array $salesInvoiceFields = [
+        'id', 'number', 'transDate', 'dueDate',
+        'customer.name', 'customer.no',
+        'totalAmount', 'remainingAmount', 'status',
+        'memo', 'branchName',
+    ];
+
+    public function getSalesOrders(Request $request, array $fields = [])
     {
-        return $this->getList('sales-order', $request, []);
+        return $this->getList('sales-order', $request, $fields ?: $this->salesOrderFields);
     }
 
-    public function getDetailSalesOrder(int $id)
+    public function getDetailSalesOrder(int $id): ?array
     {
         return $this->getDetail('sales-order', $id);
+    }
+
+    public function saveSalesOrder(array $data): array
+    {
+        return $this->saveData('sales-order', $data, 'save');
+    }
+
+    public function deleteSalesOrder(int $id): array
+    {
+        return $this->deleteData('sales-order', $id);
     }
 
     // Alias untuk backward compatibility
     public function getListSalesOrders(Request $request)
     {
         return $this->getSalesOrders($request);
+    }
+
+    // ===SALES INVOICE SCOPED===
+
+    public function getSalesInvoices(Request $request, array $fields = [])
+    {
+        return $this->getList('sales-invoice', $request, $fields ?: $this->salesInvoiceFields);
+    }
+
+    public function getDetailSalesInvoice(int $id): ?array
+    {
+        return $this->getDetail('sales-invoice', $id);
+    }
+
+    public function saveSalesInvoice(array $data): array
+    {
+        return $this->saveData('sales-invoice', $data, 'save');
+    }
+
+    public function deleteSalesInvoice(int $id): array
+    {
+        return $this->deleteData('sales-invoice', $id);
     }
 
     // INBOUND

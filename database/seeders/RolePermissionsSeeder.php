@@ -26,6 +26,7 @@ class RolePermissionsSeeder extends Seeder
             'admin.bar.*',
             'admin.inventory.*',
             'admin.bom.*',
+            'admin.menus.*',
             'admin.stock-opname.*',
             'admin.customers.*',
             'admin.customer-keep.*',
@@ -65,6 +66,7 @@ class RolePermissionsSeeder extends Seeder
             'admin.kitchen.*',
             'admin.inventory.*',
             'admin.bom.*',
+            'admin.menus.*',
             'admin.stock-opname.*',
             'admin.sync.*',
         ],
@@ -73,6 +75,7 @@ class RolePermissionsSeeder extends Seeder
             'admin.bar.*',
             'admin.inventory.*',
             'admin.bom.*',
+            'admin.menus.*',
             'admin.sync.*',
         ],
     ];

@@ -3,16 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\Billing;
+use App\Models\CustomerUser;
+use App\Models\GeneralSetting;
 use App\Models\Tabel;
 use App\Models\TableReservation;
 use App\Models\TableSession;
 use App\Models\User;
+use App\Services\AccurateService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class TableReservationController extends Controller
 {
+    public function __construct(protected AccurateService $accurateService) {}
+
     public function index(Request $request)
     {
         $query = TableReservation::with(['table.area', 'customer.profile', 'customer.customerUser', 'tableSession.billing']);
@@ -417,15 +423,23 @@ class TableReservationController extends Controller
             DB::transaction(function () use ($booking, $session, $billing, $validated) {
                 // Recalculate final totals
                 $ordersTotal = $session->orders()->sum('total');
-                // Minimum charge = minimum spend, not additive fee. Tax not yet implemented.
+                // Minimum charge = minimum spend, not additive fee.
                 $subtotal = max((float) $billing->minimum_charge, (float) $ordersTotal);
-                $grandTotal = $subtotal - $billing->discount_amount;
+                $afterDiscount = $subtotal - (float) $billing->discount_amount;
+
+                $settings = GeneralSetting::instance();
+                $serviceChargeAmount = round($afterDiscount * $settings->service_charge_percentage / 100, 2);
+                $taxAmount = round(($afterDiscount + $serviceChargeAmount) * $settings->tax_percentage / 100, 2);
+                $grandTotal = $afterDiscount + $serviceChargeAmount + $taxAmount;
                 $transactionCode = 'TRX-'.now()->timestamp.rand(100, 999);
 
                 $billing->update([
                     'orders_total' => $ordersTotal,
                     'subtotal' => $subtotal,
-                    'tax' => 0,
+                    'tax_percentage' => $settings->tax_percentage,
+                    'tax' => $taxAmount,
+                    'service_charge_percentage' => $settings->service_charge_percentage,
+                    'service_charge' => $serviceChargeAmount,
                     'grand_total' => $grandTotal,
                     'paid_amount' => $grandTotal,
                     'billing_status' => 'paid',
@@ -461,6 +475,9 @@ class TableReservationController extends Controller
 
             $customerName = $booking->customer->profile->name ?? $booking->customer->customerUser->name ?? $booking->customer->name ?? '-';
 
+            // Push to Accurate: Sales Order + Sales Invoice (non-blocking)
+            $this->pushBillingToAccurate($booking, $session, $billing);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Billing berhasil ditutup',
@@ -474,8 +491,10 @@ class TableReservationController extends Controller
                     'minimum_charge' => (float) $billing->minimum_charge,
                     'orders_total' => (float) $billing->orders_total,
                     'subtotal' => (float) $billing->subtotal,
-                    'tax' => 0,
-                    'tax_percentage' => 0,
+                    'tax' => (float) $billing->tax,
+                    'tax_percentage' => (float) $billing->tax_percentage,
+                    'service_charge' => (float) $billing->service_charge,
+                    'service_charge_percentage' => (float) $billing->service_charge_percentage,
                     'discount_amount' => (float) $billing->discount_amount,
                     'grand_total' => (float) $billing->grand_total,
                     'payment_method' => strtoupper($billing->payment_method),
@@ -484,6 +503,101 @@ class TableReservationController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Gagal menutup billing: '.$e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Push a closed billing to Accurate as Sales Order + Sales Invoice.
+     * All orders in the session are consolidated into a single SO and invoice.
+     * Failures are logged but do not interrupt the close-billing response.
+     */
+    protected function pushBillingToAccurate(TableReservation $booking, $session, $billing): void
+    {
+        try {
+            $customerUser = CustomerUser::where('user_id', $booking->customer_id)->first();
+            $customerNo = $customerUser?->customer_code;
+
+            if (! $customerNo) {
+                Log::warning('Accurate Billing Sync: customerNo not found, skipping', [
+                    'booking_id' => $booking->id,
+                ]);
+
+                return;
+            }
+
+            $transDate = now()->format('d/m/Y');
+            $reference = $billing->transaction_code;
+
+            // Consolidate all order items across all orders in the session
+            $session->loadMissing('orders.items.inventoryItem');
+
+            $detailItem = $session->orders
+                ->flatMap(fn ($order) => $order->items)
+                ->groupBy('inventory_item_id')
+                ->map(function ($group) {
+                    $first = $group->first();
+
+                    return [
+                        'itemNo' => $first->inventoryItem?->code ?? $first->item_code,
+                        'quantity' => $group->sum('quantity'),
+                        'unitPrice' => (float) $first->price,
+                        'discountPercent' => 0,
+                    ];
+                })
+                ->values()
+                ->toArray();
+
+            if (empty($detailItem)) {
+                Log::warning('Accurate Billing Sync: no items found, skipping', [
+                    'booking_id' => $booking->id,
+                ]);
+
+                return;
+            }
+
+            // 1. Save Sales Order
+            $soPayload = [
+                'customerNo' => $customerNo,
+                'transDate' => $transDate,
+                'number' => $reference,
+                'memo' => 'Booking POS — '.$reference,
+                'detailItem' => $detailItem,
+            ];
+
+            $soResult = $this->accurateService->saveSalesOrder($soPayload);
+            $soNumber = $soResult['r']['number'] ?? $soResult['d']['number'] ?? null;
+
+            // 2. Save Sales Invoice
+            $invPayload = [
+                'customerNo' => $customerNo,
+                'transDate' => $transDate,
+                'memo' => 'Booking POS — '.$reference,
+                'detailItem' => $detailItem,
+            ];
+
+            if ($soNumber) {
+                $invPayload['salesOrderNumber'] = $soNumber;
+            }
+
+            $invResult = $this->accurateService->saveSalesInvoice($invPayload);
+            $invNumber = $invResult['r']['number'] ?? $invResult['d']['number'] ?? null;
+
+            // 3. Persist Accurate numbers on the billing record
+            $billing->update([
+                'accurate_so_number' => $soNumber,
+                'accurate_inv_number' => $invNumber,
+            ]);
+
+            Log::info('Accurate Billing Sync: OK', [
+                'booking_id' => $booking->id,
+                'so_number' => $soNumber,
+                'inv_number' => $invNumber,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Accurate Billing Sync: FAILED', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
