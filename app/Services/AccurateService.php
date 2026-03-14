@@ -337,7 +337,6 @@ class AccurateService
             ->get(env('ACCURATE_API_URL').'/api/db-list.do');
 
         if ($response->failed()) {
-            Log::error('ACCURATE_ERROR - Gagal mengambil daftar database', $response->json() ?? ['body' => $response->body()]);
             throw new Exception('Gagal mendapatkan daftar database dari Accurate.');
         }
 
