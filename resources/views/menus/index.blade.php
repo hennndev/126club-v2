@@ -83,6 +83,13 @@
                    placeholder="Contoh: Nasi Goreng Spesial"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-slate-500 focus:border-transparent">
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Nama di POS <span class="text-gray-400 font-normal text-xs">(opsional)</span></label>
+            <input type="text"
+                   x-model="form.pos_name"
+                   :placeholder="form.name || 'Sama dengan Nama Menu'"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-slate-500 focus:border-transparent">
+          </div>
         </div>
 
         <!-- Item Type, Category, Unit, Price -->
@@ -324,6 +331,10 @@
                         <div class="flex items-start justify-between gap-2">
                           <div class="min-w-0">
                             <p class="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{{ $menu->name }}</p>
+                            @if ($menu->pos_name && $menu->pos_name !== $menu->name)
+                              <p class="mt-0.5 text-[11px] text-blue-600 truncate"
+                                 title="Nama POS: {{ $menu->pos_name }}">POS: {{ $menu->pos_name }}</p>
+                            @endif
                             <p class="mt-0.5 text-[11px] text-gray-400">{{ $menu->code }}</p>
                           </div>
                         </div>
@@ -383,6 +394,23 @@
           <span class="text-sm text-gray-500">Harga jual</span>
           <span id="menuModalPrice"
                 class="text-sm font-bold text-emerald-700"></span>
+        </div>
+
+        {{-- POS Name Row --}}
+        <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100">
+          <span class="text-sm text-gray-500 shrink-0">Nama di POS</span>
+          <div class="flex items-center gap-2 min-w-0">
+            <input type="text"
+                   id="menuModalPosNameInput"
+                   class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-slate-500 focus:border-transparent w-44"
+                   placeholder="Sama dengan nama menu">
+            <button type="button"
+                    id="menuModalPosNameSave"
+                    onclick="savePosName()"
+                    class="shrink-0 px-2.5 py-1.5 text-xs font-medium text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition disabled:opacity-50">
+              Simpan
+            </button>
+          </div>
         </div>
 
         {{-- Charge Toggles --}}
@@ -498,6 +526,7 @@
       const menuDetailRouteTemplate = "{{ route('admin.menus.fetch-detail', ['inventory' => '__INVENTORY__']) }}";
       const taxFlagsRouteTemplate = "{{ route('admin.menus.update-tax-flags', ['inventory' => '__INVENTORY__']) }}";
       const printerTargetsRouteTemplate = "{{ route('admin.menus.update-printer-targets', ['inventory' => '__INVENTORY__']) }}";
+      const posNameRouteTemplate = "{{ route('admin.menus.update-pos-name', ['inventory' => '__INVENTORY__']) }}";
 
       // ── helpers ────────────────────────────────────────────────────────────
       function applyToggleStyle(el, field, isActive) {
@@ -607,6 +636,13 @@
         document.getElementById('menuModalMeta').textContent = menu.code + (menu.unit ? ' · ' + menu.unit : '');
         document.getElementById('menuModalPrice').textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(menu.price || 0);
 
+        const posNameInput = document.getElementById('menuModalPosNameInput');
+        posNameInput.value = menu.pos_name || '';
+        posNameInput.dataset.itemId = menu.id;
+        const posNameSave = document.getElementById('menuModalPosNameSave');
+        posNameSave.textContent = 'Simpan';
+        posNameSave.disabled = false;
+
         const taxToggle = document.getElementById('modalTaxToggle');
         taxToggle.dataset.itemId = menu.id;
         taxToggle.dataset.value = menu.include_tax ? '1' : '0';
@@ -688,6 +724,50 @@
         if (e.key === 'Escape') closeMenuModal();
       });
 
+      async function savePosName() {
+        const posNameInput = document.getElementById('menuModalPosNameInput');
+        const saveBtn = document.getElementById('menuModalPosNameSave');
+        const itemId = posNameInput.dataset.itemId;
+
+        if (!itemId) {
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = '...';
+
+        try {
+          const response = await fetch(posNameRouteTemplate.replace('__INVENTORY__', String(itemId)), {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              pos_name: posNameInput.value
+            }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            saveBtn.textContent = 'Tersimpan ✓';
+            setTimeout(() => {
+              saveBtn.textContent = 'Simpan';
+              saveBtn.disabled = false;
+            }, 2000);
+            return;
+          }
+          throw new Error(data.message || 'Gagal');
+        } catch {
+          saveBtn.textContent = 'Gagal';
+          setTimeout(() => {
+            saveBtn.textContent = 'Simpan';
+            saveBtn.disabled = false;
+          }, 2000);
+        }
+      }
+
       document.addEventListener('change', async function(event) {
         const checkbox = event.target instanceof HTMLInputElement && event.target.matches('[data-menu-modal-printer]') ?
           event.target :
@@ -733,6 +813,7 @@
             code_mode: 'manual',
             no: '',
             name: '',
+            pos_name: '',
             item_type: 'GROUP',
             category_type: '',
             unit: '',
@@ -812,6 +893,7 @@
               code_mode: 'manual',
               no: '',
               name: '',
+              pos_name: '',
               item_type: 'GROUP',
               category_type: '',
               unit: '',
@@ -860,8 +942,7 @@
               .map((row) => ({
                 ...row,
                 quantity: Number(row.quantity),
-              })) :
-              [];
+              })) : [];
 
             if (this.form.item_type === 'GROUP') {
               const invalidQuantity = detailGroup.find((row) => !Number.isInteger(row.quantity) || row.quantity <= 0);
@@ -886,6 +967,7 @@
                   code_mode: this.form.code_mode,
                   no: this.form.no,
                   name: this.form.name,
+                  pos_name: this.form.pos_name || null,
                   item_type: this.form.item_type,
                   category_type: this.form.category_type,
                   unit: this.form.unit,

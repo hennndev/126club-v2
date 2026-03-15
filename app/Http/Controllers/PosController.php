@@ -53,7 +53,10 @@ class PosController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $inventoryQuery->where('name', 'like', '%'.$request->search.'%');
+            $inventoryQuery->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('pos_name', 'like', '%'.$request->search.'%');
+            });
         }
 
         // Map inventory items to product format
@@ -64,7 +67,7 @@ class PosController extends Controller
             return [
                 'id' => 'item_'.$item->id,
                 'item_id' => $item->id,
-                'name' => $item->name,
+                'name' => $item->pos_name ?: $item->name,
                 'category' => $item->category_type,
                 'price' => $item->price ?? 0,
                 'stock' => $isItemGroup ? null : ($item->stock_quantity ?? 0),
@@ -309,7 +312,7 @@ class PosController extends Controller
 
         $product = [
             'id' => $productId,
-            'name' => $inventoryItem->name,
+            'name' => $inventoryItem->pos_name ?: $inventoryItem->name,
             'price' => $inventoryItem->price ?? 0,
             'type' => 'item',
             'preparation_location' => $setting->preparation_location,

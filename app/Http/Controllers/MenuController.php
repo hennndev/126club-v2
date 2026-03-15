@@ -18,7 +18,7 @@ class MenuController extends Controller
     {
         $inventoryItems = InventoryItem::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'code', 'name', 'unit']);
+            ->get(['id', 'code', 'name', 'pos_name', 'unit']);
 
         $inventoryCategoryTypes = InventoryItem::query()
             ->where('is_active', true)
@@ -40,7 +40,7 @@ class MenuController extends Controller
                     ->where('is_active', true)
                     ->where('category_type', $categoryType)
                     ->orderBy('name')
-                    ->get(['id', 'code', 'name', 'category_type', 'price', 'unit', 'include_tax', 'include_service_charge']);
+                    ->get(['id', 'code', 'name', 'pos_name', 'category_type', 'price', 'unit', 'include_tax', 'include_service_charge']);
 
                 return [$categoryType => $menus];
             });
@@ -68,6 +68,7 @@ class MenuController extends Controller
             'include_service_charge' => ['nullable', 'boolean'],
             'printer_ids' => ['nullable', 'array'],
             'printer_ids.*' => ['integer', 'exists:printers,id'],
+            'pos_name' => ['nullable', 'string', 'max:255'],
             'detail_group' => 'nullable|array',
             'detail_group.*.item_no' => 'required|string|max:100',
             'detail_group.*.detail_name' => 'required|string|max:255',
@@ -117,6 +118,7 @@ class MenuController extends Controller
                         'accurate_id' => $accurateId,
                         'code' => $accurateNo ?? 'ACC-'.$accurateId,
                         'name' => $validated['name'],
+                        'pos_name' => $validated['pos_name'] ?? $validated['name'],
                         'category_type' => $validated['category_type'] ?? '',
                         'price' => $validated['selling_price'],
                         'include_tax' => (bool) ($validated['include_tax'] ?? false),
@@ -173,9 +175,21 @@ class MenuController extends Controller
         return response()->json([
             'success' => true,
             'name' => $inventory->name,
+            'pos_name' => $inventory->pos_name,
             'printer_ids' => $inventory->printers->pluck('id')->values()->all(),
             'detail_group' => $detailGroup,
         ]);
+    }
+
+    public function updatePosName(Request $request, InventoryItem $inventory): JsonResponse
+    {
+        $validated = $request->validate([
+            'pos_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $inventory->update(['pos_name' => $validated['pos_name']]);
+
+        return response()->json(['success' => true, 'pos_name' => $inventory->fresh()->pos_name]);
     }
 
     public function updatePrinterTargets(Request $request, InventoryItem $inventory): JsonResponse
