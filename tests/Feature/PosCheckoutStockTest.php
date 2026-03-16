@@ -4,6 +4,7 @@ use App\Models\Area;
 use App\Models\CustomerUser;
 use App\Models\GeneralSetting;
 use App\Models\InventoryItem;
+use App\Models\KitchenOrder;
 use App\Models\Order;
 use App\Models\PosCategorySetting;
 use App\Models\Printer;
@@ -1222,4 +1223,92 @@ test('booking checkout prints cashier ticket for items assigned to cashier print
         ])
         ->assertSuccessful()
         ->assertJsonPath('success', true);
+});
+
+test('booking checkout creates only one kitchen order when item is assigned to kitchen and cashier printers', function () {
+    $admin = adminUser();
+    $customer = User::factory()->create();
+    $area = makePosArea();
+    $table = makePosTable($area);
+
+    $kitchenPrinter = Printer::create([
+        'name' => 'Kitchen Station',
+        'printer_type' => 'kitchen',
+        'location' => 'kitchen',
+        'connection_type' => 'log',
+        'port' => 9100,
+        'timeout' => 30,
+        'header' => '126 Club',
+        'footer' => 'Thank you',
+        'width' => 42,
+        'is_active' => true,
+    ]);
+
+    $cashierPrinter = Printer::create([
+        'name' => 'Cashier Station',
+        'printer_type' => 'cashier',
+        'location' => 'cashier',
+        'connection_type' => 'log',
+        'port' => 9100,
+        'timeout' => 30,
+        'header' => '126 Club',
+        'footer' => 'Thank you',
+        'width' => 42,
+        'is_active' => true,
+    ]);
+
+    $inventoryItem = makePosInventoryItem(['stock_quantity' => 10]);
+    $inventoryItem->printers()->sync([$kitchenPrinter->id, $cashierPrinter->id]);
+
+    TableSession::create([
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'session_code' => 'SESSION-'.uniqid(),
+        'checked_in_at' => now(),
+        'status' => 'active',
+    ]);
+
+    mock(PrinterService::class, function (MockInterface $mock) use ($kitchenPrinter, $cashierPrinter): void {
+        $mock->shouldReceive('printKitchenTicket')
+            ->once()
+            ->withArgs(function ($order, $printer) use ($kitchenPrinter): bool {
+                return $printer->id === $kitchenPrinter->id;
+            })
+            ->andReturnTrue();
+
+        $mock->shouldReceive('printCashierTicket')
+            ->once()
+            ->withArgs(function ($order, $printer) use ($cashierPrinter): bool {
+                return $printer->id === $cashierPrinter->id;
+            })
+            ->andReturnTrue();
+
+        $mock->shouldReceive('printBarTicket')->never();
+        $mock->shouldReceive('printReceipt')->once()->andReturnTrue();
+    });
+
+    $cartKey = 'item_'.$inventoryItem->id;
+
+    actingAs($admin)
+        ->withSession([
+            'pos_cart' => [
+                $cartKey => [
+                    'id' => $cartKey,
+                    'name' => $inventoryItem->name,
+                    'price' => (float) $inventoryItem->price,
+                    'quantity' => 1,
+                    'preparation_location' => 'kitchen',
+                ],
+            ],
+        ])
+        ->postJson(route('admin.pos.checkout'), [
+            'customer_type' => 'booking',
+            'customer_user_id' => $customer->id,
+            'table_id' => $table->id,
+            'discount_percentage' => 0,
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('success', true);
+
+    expect(KitchenOrder::query()->count())->toBe(1);
 });

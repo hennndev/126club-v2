@@ -1141,7 +1141,6 @@ class PosController extends Controller
 
         $kitchenItems = collect();
         $barItems = collect();
-        $cashierItems = collect();
 
         // Prioritize printer type assignment. Fallback to preparation location.
         foreach ($order->items as $item) {
@@ -1173,9 +1172,10 @@ class PosController extends Controller
                 continue;
             }
 
-            // Items assigned to cashier/checker printers are grouped for cashier ticket printing
+            // Cashier/checker-assigned items ride the same kitchen-style preparation order.
+            // The print fan-out already dispatches per assigned printer type.
             if ($assignedTypes->contains('cashier') || $assignedTypes->contains('checker')) {
-                $cashierItems->push($item);
+                $kitchenItems->push($item);
 
                 continue;
             }
@@ -1249,32 +1249,6 @@ class PosController extends Controller
             $this->printBarTicket($barOrder);
         }
 
-        // Create a Kitchen Order record for cashier/checker-assigned items and print cashier ticket
-        if ($cashierItems->isNotEmpty()) {
-            $cashierOrder = KitchenOrder::create([
-                'order_id' => $order->id,
-                'order_number' => $orderNumber,
-                'customer_user_id' => $customerUserId,
-                'table_id' => $tableId,
-                'total_amount' => $cashierItems->sum('subtotal'),
-                'status' => 'baru',
-                'progress' => 0,
-            ]);
-
-            foreach ($cashierItems as $item) {
-                KitchenOrderItem::create([
-                    'kitchen_order_id' => $cashierOrder->id,
-                    'inventory_item_id' => $item->inventory_item_id,
-                    'quantity' => $item->quantity,
-                    'price' => $item->price,
-                    'is_completed' => false,
-                    'notes' => $item->notes,
-                ]);
-            }
-
-            // printKitchenTicket dispatches to printCashierTicket for cashier-type printers
-            $this->printKitchenTicket($cashierOrder);
-        }
     }
 
     /**
