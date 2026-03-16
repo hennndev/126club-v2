@@ -49,7 +49,7 @@ class RecapController extends Controller
             ['Item Keluar Bar', $recapData['barQtyTotal']],
             [],
             ['Kasir (Harga Ditampilkan)'],
-            ['Tanggal & Jam', 'No. Transaksi', 'Customer', 'Qty Item', 'Total'],
+            ['Tanggal & Jam', 'No. Transaksi', 'Customer', 'Metode Pembayaran', 'Qty Item', 'Total'],
         ];
 
         foreach ($recapData['cashierTransactions'] as $transaction) {
@@ -57,6 +57,7 @@ class RecapController extends Controller
                 $transaction['datetime'],
                 $transaction['order_number'],
                 $transaction['customer_name'],
+                $transaction['payment_method'],
                 $transaction['items_count'],
                 $transaction['total'],
             ];
@@ -102,7 +103,7 @@ class RecapController extends Controller
     private function buildRecapData(Carbon $startAt, Carbon $endAt): array
     {
         $cashierTransactions = Order::query()
-            ->with(['items', 'tableSession.customer.profile', 'customer.user'])
+            ->with(['items', 'tableSession.billing', 'tableSession.customer.profile', 'customer.user'])
             ->where('status', '!=', 'cancelled')
             ->where(function ($query) use ($startAt, $endAt): void {
                 $query->whereBetween('ordered_at', [$startAt, $endAt])
@@ -119,12 +120,15 @@ class RecapController extends Controller
                     ?? $order->tableSession?->customer?->name
                     ?? $order->customer?->user?->name
                     ?? 'Walk-in';
+                $paymentMode = $order->payment_mode ?? $order->tableSession?->billing?->payment_mode;
+                $paymentMethod = $order->payment_method ?? $order->tableSession?->billing?->payment_method;
 
                 return [
                     'timestamp' => $eventTime,
                     'datetime' => $eventTime?->format('d/m/Y H:i') ?? '-',
                     'order_number' => $order->order_number,
                     'customer_name' => $customerName,
+                    'payment_method' => $this->formatPaymentMethod($paymentMethod, $paymentMode),
                     'items_count' => $order->items->count(),
                     'total' => (float) $order->total,
                 ];
@@ -187,6 +191,20 @@ class RecapController extends Controller
             'barItems' => $barItems,
             'barQtyTotal' => (int) $barItems->sum('qty'),
         ];
+    }
+
+    private function formatPaymentMethod(?string $paymentMethod, ?string $paymentMode): string
+    {
+        if ($paymentMode === 'split') {
+            return 'Split Bill';
+        }
+
+        return match (strtolower((string) $paymentMethod)) {
+            'cash' => 'Tunai',
+            'debit' => 'Debit',
+            'kredit' => 'Kredit',
+            default => filled($paymentMethod) ? strtoupper((string) $paymentMethod) : '-',
+        };
     }
 
     /**

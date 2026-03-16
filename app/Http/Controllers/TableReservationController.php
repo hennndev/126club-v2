@@ -418,7 +418,7 @@ class TableReservationController extends Controller
     {
         $validated = $request->validate([
             'payment_mode' => 'required|in:normal,split',
-            'payment_method' => 'required_if:payment_mode,normal|nullable|in:cash,kredit,debit',
+            'payment_method' => 'required_if:payment_mode,normal|nullable|in:cash,kredit,debit,qris',
             'payment_reference_number' => 'nullable|string|max:100',
             'split_cash_amount' => 'required_if:payment_mode,split|nullable|numeric|min:0',
             'split_non_cash_amount' => 'required_if:payment_mode,split|nullable|numeric|min:0',

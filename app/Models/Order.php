@@ -21,6 +21,8 @@ class Order extends Model
         'notes',
         'cancellation_reason',
         'cancelled_by',
+        'payment_method',
+        'payment_mode',
         'accurate_so_number',
         'accurate_inv_number',
         'receipt_print_count',

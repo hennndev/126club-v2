@@ -27,9 +27,9 @@ function makeRecapInventoryItem(array $attributes = []): InventoryItem
     ], $attributes));
 }
 
-function makeRecapOrder(int $createdById, \Illuminate\Support\Carbon $orderedAt, string $orderNumber): Order
+function makeRecapOrder(int $createdById, \Illuminate\Support\Carbon $orderedAt, string $orderNumber, array $attributes = []): Order
 {
-    return Order::create([
+    return Order::create(array_merge([
         'table_session_id' => null,
         'customer_user_id' => null,
         'created_by' => $createdById,
@@ -39,7 +39,9 @@ function makeRecapOrder(int $createdById, \Illuminate\Support\Carbon $orderedAt,
         'discount_amount' => 0,
         'total' => 30000,
         'ordered_at' => $orderedAt,
-    ]);
+        'payment_method' => 'cash',
+        'payment_mode' => 'normal',
+    ], $attributes));
 }
 
 test('admin can open recap page', function () {
@@ -59,6 +61,7 @@ test('admin can open recap page', function () {
         ->assertSeeText('Sampai')
         ->assertSeeText('Export Excel (.xlsx)')
         ->assertSeeText('Transaksi Kasir')
+        ->assertSeeText('Metode Pembayaran')
         ->assertSeeText('Item Keluar Kitchen')
         ->assertSeeText('Item Keluar Bar')
         ->assertSee(route('admin.recap.export', [
@@ -200,6 +203,7 @@ test('recap page filters cashier kitchen and bar events by selected datetime ran
         ->assertDontSee('Mie Goreng Lama')
         ->assertSee('Es Teh Recap')
         ->assertDontSee('Jus Lama')
+        ->assertSee('Tunai')
         ->assertSee('Rp 30.000');
 });
 

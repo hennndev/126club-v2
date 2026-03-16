@@ -83,6 +83,7 @@
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tanggal & Jam</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">No. Transaksi</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Metode Pembayaran</th>
                 <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Qty Item</th>
                 <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
               </tr>
@@ -93,12 +94,13 @@
                   <td class="px-4 py-3 text-sm text-gray-700">{{ $transaction['datetime'] }}</td>
                   <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $transaction['order_number'] }}</td>
                   <td class="px-4 py-3 text-sm text-gray-700">{{ $transaction['customer_name'] }}</td>
+                  <td class="px-4 py-3 text-sm text-gray-700">{{ $transaction['payment_method'] }}</td>
                   <td class="px-4 py-3 text-sm text-gray-700 text-right">{{ $transaction['items_count'] }}</td>
                   <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">Rp {{ number_format($transaction['total'], 0, ',', '.') }}</td>
                 </tr>
               @empty
                 <tr>
-                  <td colspan="5"
+                  <td colspan="6"
                       class="px-4 py-6 text-sm text-center text-gray-500">Tidak ada transaksi kasir pada tanggal ini.</td>
                 </tr>
               @endforelse

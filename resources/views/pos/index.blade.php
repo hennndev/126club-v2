@@ -825,6 +825,26 @@
             </div>
           </div>{{-- end waiter section --}}
 
+          <div x-show="checkoutForm.customer_type === 'walk-in'"
+               style="display: none;"
+               class="space-y-2">
+            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide">Metode Pembayaran</label>
+            <div class="grid grid-cols-3 gap-2">
+              <template x-for="option in [{ value: 'cash', label: 'Tunai' }, { value: 'debit', label: 'Debit' }, { value: 'kredit', label: 'Kredit' }]"
+                        :key="option.value">
+                <label class="flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-medium cursor-pointer transition"
+                       :class="checkoutForm.payment_method === option.value ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'">
+                  <input type="radio"
+                         class="sr-only"
+                         name="walk_in_payment_method"
+                         :value="option.value"
+                         x-model="checkoutForm.payment_method">
+                  <span x-text="option.label"></span>
+                </label>
+              </template>
+            </div>
+          </div>
+
           <div x-show="hasMenuAvailabilityPreview()"
                style="display: none;"
                class="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
@@ -1643,6 +1663,8 @@
             customer_type: '',
             customer_user_id: '',
             walk_in_customer_id: '',
+            payment_method: 'cash',
+            payment_mode: 'normal',
             customerName: '',
             customerInitial: '',
             customerPhone: '',
@@ -2179,6 +2201,8 @@
                   customer_type: '',
                   customer_user_id: '',
                   walk_in_customer_id: '',
+                  payment_method: 'cash',
+                  payment_mode: 'normal',
                   customerName: '',
                   customerInitial: '',
                   customerPhone: '',

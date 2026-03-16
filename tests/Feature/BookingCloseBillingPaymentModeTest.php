@@ -249,6 +249,30 @@ test('close billing works with normal non-cash payment and reference number', fu
         ->and($updatedBilling->payment_reference_number)->toBe('APPROVAL-12345');
 });
 
+test('close billing works with normal qris payment and reference number', function () {
+    $admin = adminUser();
+    [$booking] = makeBookingCloseBillingFixture($admin);
+
+    $response = actingAs($admin)->postJson(route('admin.bookings.closeBilling', $booking), [
+        'payment_mode' => 'normal',
+        'payment_method' => 'qris',
+        'payment_reference_number' => 'QRIS-INV-001',
+    ]);
+
+    $response
+        ->assertSuccessful()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('receipt.payment_method', 'QRIS')
+        ->assertJsonPath('receipt.payment_reference_number', 'QRIS-INV-001');
+
+    $updatedBilling = $booking->fresh()->tableSession->billing;
+
+    expect($updatedBilling->billing_status)->toBe('paid')
+        ->and($updatedBilling->payment_mode)->toBe('normal')
+        ->and($updatedBilling->payment_method)->toBe('qris')
+        ->and($updatedBilling->payment_reference_number)->toBe('QRIS-INV-001');
+});
+
 test('close billing works with split payment mode cash and non-cash method', function () {
     $admin = adminUser();
     [$booking] = makeBookingCloseBillingFixture($admin);

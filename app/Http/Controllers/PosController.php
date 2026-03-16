@@ -463,6 +463,8 @@ class PosController extends Controller
             'customer_user_id' => 'required_if:customer_type,booking|nullable|exists:users,id',
             'table_id' => 'nullable|exists:tables,id',
             'discount_percentage' => 'nullable|integer|min:0|max:100',
+            'payment_method' => 'required_if:customer_type,walk-in|nullable|in:cash,debit,kredit',
+            'payment_mode' => 'nullable|in:normal,split',
         ]);
 
         $cartNotes = $request->input('cart_notes', []);
@@ -687,6 +689,8 @@ class PosController extends Controller
                     'discount_amount' => 0,
                     'total' => 0,
                     'ordered_at' => now(),
+                    'payment_method' => $validated['payment_method'] ?? null,
+                    'payment_mode' => $validated['payment_mode'] ?? 'normal',
                 ]);
 
                 $itemsTotal = 0;

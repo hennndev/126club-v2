@@ -540,6 +540,8 @@ test('walk in checkout decrements inventory stock and syncs accurate documents',
         ->postJson(route('admin.pos.checkout'), [
             'customer_type' => 'walk-in',
             'walk_in_customer_id' => $customer->id,
+            'payment_method' => 'debit',
+            'payment_mode' => 'normal',
             'discount_percentage' => 0,
         ]);
 
@@ -560,6 +562,8 @@ test('walk in checkout decrements inventory stock and syncs accurate documents',
         ->and($customerUser->fresh()->accurate_id)->toBe(98765)
         ->and($order)->not->toBeNull()
         ->and((float) $order->total)->toBe(61050.0)
+        ->and($order->payment_method)->toBe('debit')
+        ->and($order->payment_mode)->toBe('normal')
         ->and($order->accurate_so_number)->toBe('SO-WALKIN-001')
         ->and($order->accurate_inv_number)->toBe('INV-WALKIN-001');
 });
@@ -676,6 +680,8 @@ test('walk in checkout auto prints one menu to multiple assigned target printers
         ->postJson(route('admin.pos.checkout'), [
             'customer_type' => 'walk-in',
             'walk_in_customer_id' => $customer->id,
+            'payment_method' => 'cash',
+            'payment_mode' => 'normal',
             'discount_percentage' => 0,
         ])
         ->assertSuccessful()
