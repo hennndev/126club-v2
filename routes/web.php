@@ -7,6 +7,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerKeepController;
 use App\Http\Controllers\KitchenController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RecapController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Settings\ClubHoursController;
@@ -148,6 +149,10 @@ Route::middleware('auth')->group(function () {
         // Transaction History
         Route::get('transaction-history', [TransactionHistoryController::class, 'index'])->name('transaction-history.index');
         Route::post('transaction-history/{order}/print', [TransactionHistoryController::class, 'print'])->name('transaction-history.print');
+
+        // End-day Recap
+        Route::get('recap', [RecapController::class, 'index'])->name('recap.index');
+        Route::get('recap/export', [RecapController::class, 'export'])->name('recap.export');
 
         // Waiter Performance
         Route::get('waiter-performance', [WaiterPerformanceController::class, 'index'])->name('waiter-performance.index');

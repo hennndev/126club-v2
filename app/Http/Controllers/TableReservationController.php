@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Billing;
 use App\Models\CustomerUser;
+use App\Models\DailyAuthCode;
 use App\Models\GeneralSetting;
 use App\Models\Tabel;
 use App\Models\TableReservation;
@@ -423,6 +424,10 @@ class TableReservationController extends Controller
             'split_non_cash_amount' => 'required_if:payment_mode,split|nullable|numeric|min:0',
             'split_non_cash_method' => 'required_if:payment_mode,split|nullable|in:debit,kredit,qris,transfer,ewallet,lainnya',
             'split_non_cash_reference_number' => 'nullable|string|max:100',
+            'discount_type' => 'nullable|in:percentage,nominal',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_nominal' => 'nullable|numeric|min:0',
+            'discount_auth_code' => 'nullable|digits:4',
         ]);
 
         $session = TableSession::with(['billing', 'orders.items'])
@@ -460,9 +465,46 @@ class TableReservationController extends Controller
             DB::transaction(function () use ($booking, $session, $billing, $validated) {
                 $session->loadMissing('orders.items.inventoryItem');
 
+                $discountType = $validated['discount_type'] ?? null;
+                $discountPercentage = (float) ($validated['discount_percentage'] ?? 0);
+                $discountNominal = (float) ($validated['discount_nominal'] ?? 0);
+                $discountAuthCode = (string) ($validated['discount_auth_code'] ?? '');
+
+                $baseTotals = $this->calculateSessionBillingTotals(
+                    $session,
+                    0,
+                    (float) $billing->minimum_charge,
+                );
+
+                $subtotalForDiscount = (float) $baseTotals['subtotal'];
+                $requestedDiscountAmount = match ($discountType) {
+                    'percentage' => round($subtotalForDiscount * ($discountPercentage / 100), 2),
+                    'nominal' => round($discountNominal, 2),
+                    default => 0,
+                };
+
+                $requestedDiscountAmount = min(max($requestedDiscountAmount, 0), $subtotalForDiscount);
+
+                if ($requestedDiscountAmount > 0) {
+                    if ($discountAuthCode === '') {
+                        throw ValidationException::withMessages([
+                            'discount_auth_code' => 'Auth code wajib diisi untuk memberikan diskon.',
+                        ]);
+                    }
+
+                    $today = now()->format('Y-m-d');
+                    $authRecord = DailyAuthCode::forDate($today);
+
+                    if ($discountAuthCode !== $authRecord->active_code) {
+                        throw ValidationException::withMessages([
+                            'discount_auth_code' => 'Auth code diskon tidak valid.',
+                        ]);
+                    }
+                }
+
                 $totals = $this->calculateSessionBillingTotals(
                     $session,
-                    (float) $billing->discount_amount,
+                    $requestedDiscountAmount,
                     (float) $billing->minimum_charge,
                 );
 
@@ -516,6 +558,7 @@ class TableReservationController extends Controller
                 $billing->update([
                     'orders_total' => (float) $totals['orders_total'],
                     'subtotal' => (float) $totals['subtotal'],
+                    'discount_amount' => (float) $totals['discount_amount'],
                     'tax_percentage' => (float) $totals['tax_percentage'],
                     'tax' => (float) $totals['tax'],
                     'service_charge_percentage' => (float) $totals['service_charge_percentage'],

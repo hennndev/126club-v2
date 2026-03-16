@@ -636,6 +636,8 @@ class PosController extends Controller
 
                 DB::commit();
 
+                $receiptPrinted = $this->printOrderReceipt($order);
+
                 // Clear cart
                 session()->forget('pos_cart');
 
@@ -652,6 +654,7 @@ class PosController extends Controller
                     'tax' => (float) $orderTotals['tax'],
                     'total' => (float) $orderTotals['grand_total'],
                     'formatted_total' => 'Rp '.number_format((float) $orderTotals['grand_total'], 0, ',', '.'),
+                    'receipt_printed' => $receiptPrinted,
                 ]);
             }
 
@@ -754,12 +757,12 @@ class PosController extends Controller
 
                 DB::commit();
 
+                $receiptPrinted = $this->printOrderReceipt($order);
+
                 session()->forget('pos_cart');
 
                 // Push to Accurate: Sales Order + Sales Invoice (non-blocking)
                 $this->pushOrderToAccurate($order, $customerUser, $totals['grand_total']);
-
-                // Receipt can be printed manually from POS action when needed
 
                 return response()->json([
                     'success' => true,
@@ -774,6 +777,7 @@ class PosController extends Controller
                     'tax' => $totals['tax'],
                     'total' => $totals['grand_total'],
                     'formatted_total' => 'Rp '.number_format($totals['grand_total'], 0, ',', '.'),
+                    'receipt_printed' => $receiptPrinted,
                 ]);
             }
 
@@ -1001,7 +1005,7 @@ class PosController extends Controller
             if ($request->filled('printer_id')) {
                 $printer = Printer::active()->find($request->input('printer_id'));
             }
-            $printer = $printer ?? Printer::getDefault();
+            $printer = $printer ?? Printer::getForService('cashier') ?? Printer::getDefault();
 
             if (! $printer) {
                 return response()->json([
@@ -1009,6 +1013,17 @@ class PosController extends Controller
                     'message' => 'No default printer configured.',
                 ], 400);
             }
+
+            Log::info('POS receipt print selected printer', [
+                'requested_printer_id' => $request->input('printer_id'),
+                'selected_printer_id' => $printer->id,
+                'selected_printer_name' => $printer->name,
+                'selected_printer_type' => $printer->printer_type,
+                'selected_printer_location' => $printer->location,
+                'connection_type' => $printer->connection_type,
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+            ]);
 
             $this->printerService->printReceipt($order, $printer);
 
@@ -1034,7 +1049,7 @@ class PosController extends Controller
             if ($request->filled('printer_id')) {
                 $printer = Printer::active()->find($request->input('printer_id'));
             }
-            $printer = $printer ?? Printer::getDefault();
+            $printer = $printer ?? Printer::getForService('cashier') ?? Printer::getDefault();
 
             if (! $printer) {
                 return response()->json([
@@ -1043,11 +1058,24 @@ class PosController extends Controller
                 ], 400);
             }
 
+            Log::info('POS test print selected printer', [
+                'requested_printer_id' => $request->input('printer_id'),
+                'selected_printer_id' => $printer->id,
+                'selected_printer_name' => $printer->name,
+                'selected_printer_type' => $printer->printer_type,
+                'selected_printer_location' => $printer->location,
+                'connection_type' => $printer->connection_type,
+            ]);
+
             $this->printerService->testPrint($printer);
+
+            $modeMessage = $printer->connection_type === 'log'
+                ? 'Mode LOG (simulasi), kertas tidak akan keluar.'
+                : 'Perintah test print sudah dikirim ke printer fisik.';
 
             return response()->json([
                 'success' => true,
-                'message' => 'Test print successful. Check your printer.',
+                'message' => "Test print ke {$printer->name} ({$printer->printer_type}/{$printer->location}) berhasil. {$modeMessage}",
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -1063,17 +1091,39 @@ class PosController extends Controller
     protected function printOrderReceipt(Order $order): bool
     {
         try {
-            $printer = Printer::getDefault();
+            $printer = Printer::getForService('cashier') ?? Printer::getDefault();
 
             if (! $printer) {
+                Log::warning('POS receipt auto print skipped because no cashier printer is configured', [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                ]);
+
                 return false;
             }
 
             $order->load(['items.inventoryItem', 'tableSession.table']);
+
+            Log::info('POS auto receipt print selected printer', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'selected_printer_id' => $printer->id,
+                'selected_printer_name' => $printer->name,
+                'selected_printer_type' => $printer->printer_type,
+                'selected_printer_location' => $printer->location,
+                'connection_type' => $printer->connection_type,
+            ]);
+
             $this->printerService->printReceipt($order, $printer);
 
             return true;
         } catch (\Exception $e) {
+            Log::warning('POS receipt auto print failed', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'message' => $e->getMessage(),
+            ]);
+
             return false;
         }
     }
@@ -1087,21 +1137,22 @@ class PosController extends Controller
 
         $kitchenItems = collect();
         $barItems = collect();
+        $cashierItems = collect();
 
-        // Prioritize kitchen/bar printer assignment. Fallback to preparation location.
+        // Prioritize printer type assignment. Fallback to preparation location.
         foreach ($order->items as $item) {
             $assignedTypes = $item->inventoryItem?->printers
                 ?->filter(fn (Printer $printer): bool => $printer->is_active)
                 ->map(function (Printer $printer): ?string {
                     $type = strtolower(trim((string) $printer->printer_type));
 
-                    if (in_array($type, ['kitchen', 'bar'], true)) {
+                    if (in_array($type, ['kitchen', 'bar', 'cashier', 'checker'], true)) {
                         return $type;
                     }
 
                     $location = strtolower(trim((string) $printer->location));
 
-                    return in_array($location, ['kitchen', 'bar'], true) ? $location : null;
+                    return in_array($location, ['kitchen', 'bar', 'cashier', 'checker'], true) ? $location : null;
                 })
                 ->filter()
                 ->values() ?? collect();
@@ -1118,7 +1169,14 @@ class PosController extends Controller
                 continue;
             }
 
-            // Unassigned items go straight to transaction checker (no kitchen/bar order)
+            // Items assigned to cashier/checker printers are grouped for cashier ticket printing
+            if ($assignedTypes->contains('cashier') || $assignedTypes->contains('checker')) {
+                $cashierItems->push($item);
+
+                continue;
+            }
+
+            // Unassigned items go straight to transaction checker (no production order)
         }
 
         // Resolve customer_user_id: from session (booking) or from walk-in param
@@ -1185,6 +1243,33 @@ class PosController extends Controller
 
             // Auto-print bar ticket if a printer is configured for 'bar' location
             $this->printBarTicket($barOrder);
+        }
+
+        // Create a Kitchen Order record for cashier/checker-assigned items and print cashier ticket
+        if ($cashierItems->isNotEmpty()) {
+            $cashierOrder = KitchenOrder::create([
+                'order_id' => $order->id,
+                'order_number' => $orderNumber,
+                'customer_user_id' => $customerUserId,
+                'table_id' => $tableId,
+                'total_amount' => $cashierItems->sum('subtotal'),
+                'status' => 'baru',
+                'progress' => 0,
+            ]);
+
+            foreach ($cashierItems as $item) {
+                KitchenOrderItem::create([
+                    'kitchen_order_id' => $cashierOrder->id,
+                    'inventory_item_id' => $item->inventory_item_id,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'is_completed' => false,
+                    'notes' => $item->notes,
+                ]);
+            }
+
+            // printKitchenTicket dispatches to printCashierTicket for cashier-type printers
+            $this->printKitchenTicket($cashierOrder);
         }
     }
 

@@ -25,7 +25,7 @@
         </svg>
         QR Scan
       </button>
-      <button @click="tab = 'manual'"
+      <button @click="tab = 'manual'; stopCamera()"
               :class="tab === 'manual' ? 'bg-white text-gray-900 shadow-sm' : 'text-slate-700'"
               class="flex-1 py-2.5 rounded-full flex items-center justify-center gap-2 font-semibold text-sm transition-all duration-200">
         <svg class="w-4 h-4"
@@ -297,42 +297,89 @@
 
           init() {},
 
+          async safeClearScanner() {
+            if (!this.qrScanner) {
+              return;
+            }
+
+            try {
+              await this.qrScanner.stop();
+            } catch (_) {}
+
+            try {
+              await this.qrScanner.clear();
+            } catch (_) {}
+
+            this.qrScanner = null;
+          },
+
           async startCamera() {
             this.scanResult = null;
             this.checkInSuccess = false;
+
+            if (this.cameraActive) {
+              return;
+            }
+
+            if (typeof Html5Qrcode === 'undefined') {
+              alert('Library scanner tidak termuat. Coba refresh halaman.');
+              return;
+            }
+
             try {
-              this.qrScanner = new Html5Qrcode('qrCameraContainer');
-              await this.qrScanner.start({
-                  facingMode: 'environment'
-                }, {
-                  fps: 10,
-                  qrbox: {
-                    width: 200,
-                    height: 200
-                  }
-                },
-                (decodedText) => {
-                  if (decodedText !== this.lastScannedCode) {
-                    this.lastScannedCode = decodedText;
-                    this.processCode(decodedText);
-                    this.stopCamera();
-                  }
-                },
-                () => {}
-              );
               this.cameraActive = true;
+              await new Promise((resolve) => this.$nextTick(resolve));
+
+              this.qrScanner = new Html5Qrcode('qrCameraContainer');
+              const scanConfig = {
+                fps: 10,
+                qrbox: {
+                  width: 200,
+                  height: 200
+                }
+              };
+
+              const onDecoded = (decodedText) => {
+                if (decodedText !== this.lastScannedCode) {
+                  this.lastScannedCode = decodedText;
+                  this.processCode(decodedText);
+                  this.stopCamera();
+                }
+              };
+
+              try {
+                await this.qrScanner.start({
+                  facingMode: 'environment'
+                }, scanConfig, onDecoded, () => {});
+              } catch (_) {
+                const cameras = await Html5Qrcode.getCameras();
+
+                if (!cameras || cameras.length === 0) {
+                  throw new Error('Kamera tidak ditemukan pada perangkat ini.');
+                }
+
+                const backCamera = cameras.find((camera) => /(back|rear|environment)/i.test(camera.label || ''));
+                const selectedCamera = backCamera ?? cameras[0];
+
+                await this.qrScanner.start({
+                  deviceId: {
+                    exact: selectedCamera.id
+                  }
+                }, scanConfig, onDecoded, () => {});
+              }
+
+              this.lastScannedCode = null;
             } catch (e) {
-              alert('Tidak bisa mengakses kamera. Pastikan izin kamera diberikan.');
+              await this.safeClearScanner();
+              this.cameraActive = false;
+
+              const reason = e?.message ? `\nDetail: ${e.message}` : '';
+              alert('Tidak bisa mengakses kamera. Pastikan izin kamera diberikan dan tidak dipakai aplikasi lain.' + reason);
             }
           },
 
           async stopCamera() {
-            if (this.qrScanner) {
-              try {
-                await this.qrScanner.stop();
-              } catch (_) {}
-              this.qrScanner = null;
-            }
+            await this.safeClearScanner();
             this.cameraActive = false;
           },
 

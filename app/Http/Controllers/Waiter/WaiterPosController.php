@@ -278,6 +278,7 @@ class WaiterPosController extends Controller
 
         $kitchenItems = collect();
         $barItems = collect();
+        $cashierItems = collect();
 
         foreach ($order->items as $item) {
             $assignedTypes = $item->inventoryItem?->printers
@@ -285,13 +286,13 @@ class WaiterPosController extends Controller
                 ->map(function (Printer $printer): ?string {
                     $type = strtolower(trim((string) $printer->printer_type));
 
-                    if (in_array($type, ['kitchen', 'bar'], true)) {
+                    if (in_array($type, ['kitchen', 'bar', 'cashier', 'checker'], true)) {
                         return $type;
                     }
 
                     $location = strtolower(trim((string) $printer->location));
 
-                    return in_array($location, ['kitchen', 'bar'], true) ? $location : null;
+                    return in_array($location, ['kitchen', 'bar', 'cashier', 'checker'], true) ? $location : null;
                 })
                 ->filter()
                 ->values() ?? collect();
@@ -308,7 +309,14 @@ class WaiterPosController extends Controller
                 continue;
             }
 
-            // Unassigned items go straight to transaction checker (no kitchen/bar order)
+            // Items assigned to cashier/checker printers are grouped for cashier ticket printing
+            if ($assignedTypes->contains('cashier') || $assignedTypes->contains('checker')) {
+                $cashierItems->push($item);
+
+                continue;
+            }
+
+            // Unassigned items go straight to transaction checker (no production order)
         }
 
         $customerUserId = CustomerUser::where('user_id', $tableSession->customer_id)
@@ -364,6 +372,33 @@ class WaiterPosController extends Controller
             }
 
             $this->printBarTicket($barOrder);
+        }
+
+        // Create a Kitchen Order record for cashier/checker-assigned items and print cashier ticket
+        if ($cashierItems->isNotEmpty()) {
+            $cashierOrder = KitchenOrder::create([
+                'order_id' => $order->id,
+                'order_number' => $orderNumber,
+                'customer_user_id' => $customerUserId,
+                'table_id' => $tableId,
+                'total_amount' => $cashierItems->sum('subtotal'),
+                'status' => 'baru',
+                'progress' => 0,
+            ]);
+
+            foreach ($cashierItems as $item) {
+                KitchenOrderItem::create([
+                    'kitchen_order_id' => $cashierOrder->id,
+                    'inventory_item_id' => $item->inventory_item_id,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'is_completed' => false,
+                    'notes' => $item->notes,
+                ]);
+            }
+
+            // printKitchenTicket dispatches to printCashierTicket for cashier-type printers
+            $this->printKitchenTicket($cashierOrder);
         }
     }
 

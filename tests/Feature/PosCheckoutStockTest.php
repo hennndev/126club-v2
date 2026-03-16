@@ -204,9 +204,10 @@ test('booking checkout auto prints one menu to multiple assigned target printers
         'is_active' => true,
     ]);
 
-    Printer::create([
+    $cashierPrinter = Printer::create([
         'name' => 'Cashier Default',
         'location' => 'cashier',
+        'printer_type' => 'cashier',
         'connection_type' => 'log',
         'port' => 9100,
         'timeout' => 30,
@@ -239,7 +240,7 @@ test('booking checkout auto prints one menu to multiple assigned target printers
         'status' => 'active',
     ]);
 
-    mock(PrinterService::class, function (MockInterface $mock) use ($targetPrinterOne, $targetPrinterTwo): void {
+    mock(PrinterService::class, function (MockInterface $mock) use ($targetPrinterOne, $targetPrinterTwo, $cashierPrinter): void {
         $mock->shouldReceive('printKitchenTicket')
             ->twice()
             ->withArgs(function ($order, $printer) use ($targetPrinterOne, $targetPrinterTwo): bool {
@@ -252,7 +253,10 @@ test('booking checkout auto prints one menu to multiple assigned target printers
             ->andReturnTrue();
 
         $mock->shouldReceive('printBarTicket')->never();
-        $mock->shouldReceive('printReceipt')->never();
+        $mock->shouldReceive('printReceipt')
+            ->once()
+            ->withArgs(fn (Order $order, Printer $printer): bool => (int) $printer->id === (int) $cashierPrinter->id && (int) $order->items->count() === 1)
+            ->andReturnTrue();
     });
 
     $cartKey = 'item_'.$inventoryItem->id;
@@ -276,7 +280,8 @@ test('booking checkout auto prints one menu to multiple assigned target printers
             'discount_percentage' => 0,
         ])
         ->assertSuccessful()
-        ->assertJsonPath('success', true);
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('receipt_printed', true);
 });
 
 test('booking checkout returns tax and service totals based on menu flags', function () {
@@ -320,7 +325,7 @@ test('booking checkout returns tax and service totals based on menu flags', func
     mock(PrinterService::class, function (MockInterface $mock): void {
         $mock->shouldReceive('printKitchenTicket')->never();
         $mock->shouldReceive('printBarTicket')->never();
-        $mock->shouldReceive('printReceipt')->never();
+        $mock->shouldReceive('printReceipt')->once()->andReturnTrue();
     });
 
     $cartKey = 'item_'.$inventoryItem->id;
@@ -437,7 +442,7 @@ test('booking checkout keeps printing to other assigned printers when one target
             });
 
         $mock->shouldReceive('printBarTicket')->never();
-        $mock->shouldReceive('printReceipt')->never();
+        $mock->shouldReceive('printReceipt')->once()->andReturnTrue();
     });
 
     $cartKey = 'item_'.$inventoryItem->id;
@@ -600,9 +605,10 @@ test('walk in checkout auto prints one menu to multiple assigned target printers
         'is_active' => true,
     ]);
 
-    Printer::create([
+    $cashierPrinter = Printer::create([
         'name' => 'Cashier Default',
         'location' => 'cashier',
+        'printer_type' => 'cashier',
         'connection_type' => 'log',
         'port' => 9100,
         'timeout' => 30,
@@ -634,7 +640,7 @@ test('walk in checkout auto prints one menu to multiple assigned target printers
         $mock->shouldReceive('saveSalesInvoice')->andReturn(['r' => ['number' => 'INV-001']]);
     });
 
-    mock(PrinterService::class, function (MockInterface $mock) use ($targetPrinterOne, $targetPrinterTwo): void {
+    mock(PrinterService::class, function (MockInterface $mock) use ($targetPrinterOne, $targetPrinterTwo, $cashierPrinter): void {
         $mock->shouldReceive('printKitchenTicket')
             ->twice()
             ->withArgs(function ($order, $printer) use ($targetPrinterOne, $targetPrinterTwo): bool {
@@ -646,7 +652,10 @@ test('walk in checkout auto prints one menu to multiple assigned target printers
             })
             ->andReturnTrue();
 
-        $mock->shouldReceive('printReceipt')->never();
+        $mock->shouldReceive('printReceipt')
+            ->once()
+            ->withArgs(fn (Order $order, Printer $printer): bool => (int) $printer->id === (int) $cashierPrinter->id && (int) $order->items->count() === 1)
+            ->andReturnTrue();
         $mock->shouldReceive('printBarTicket')->never();
     });
 
@@ -670,7 +679,85 @@ test('walk in checkout auto prints one menu to multiple assigned target printers
             'discount_percentage' => 0,
         ])
         ->assertSuccessful()
-        ->assertJsonPath('success', true);
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('receipt_printed', true);
+});
+
+test('booking checkout auto prints to cashier type printer even when another printer is default', function () {
+    $admin = adminUser();
+    $customer = User::factory()->create();
+    $area = makePosArea();
+    $table = makePosTable($area);
+    $inventoryItem = makePosInventoryItem(['stock_quantity' => 10]);
+
+    Printer::create([
+        'name' => 'Default Kitchen Printer',
+        'location' => 'kitchen',
+        'printer_type' => 'kitchen',
+        'connection_type' => 'log',
+        'port' => 9100,
+        'timeout' => 30,
+        'header' => '126 Club',
+        'footer' => 'Thank you',
+        'width' => 42,
+        'is_default' => true,
+        'is_active' => true,
+    ]);
+
+    $cashierPrinter = Printer::create([
+        'name' => 'Cashier Network Printer',
+        'location' => 'cashier',
+        'printer_type' => 'cashier',
+        'connection_type' => 'log',
+        'port' => 9100,
+        'timeout' => 30,
+        'header' => '126 Club',
+        'footer' => 'Thank you',
+        'width' => 42,
+        'is_default' => false,
+        'is_active' => true,
+    ]);
+
+    TableSession::create([
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'session_code' => 'SESSION-'.uniqid(),
+        'checked_in_at' => now(),
+        'status' => 'active',
+    ]);
+
+    mock(PrinterService::class, function (MockInterface $mock) use ($cashierPrinter): void {
+        $mock->shouldReceive('printKitchenTicket')->never();
+        $mock->shouldReceive('printBarTicket')->never();
+        $mock->shouldReceive('printReceipt')
+            ->once()
+            ->withArgs(fn (Order $order, Printer $printer): bool => (int) $printer->id === (int) $cashierPrinter->id && $order->order_number !== '')
+            ->andReturnTrue();
+    });
+
+    $cartKey = 'item_'.$inventoryItem->id;
+
+    actingAs($admin)
+        ->withSession([
+            'pos_cart' => [
+                $cartKey => [
+                    'id' => $cartKey,
+                    'name' => $inventoryItem->name,
+                    'price' => (float) $inventoryItem->price,
+                    'quantity' => 1,
+                    'preparation_location' => null,
+                ],
+            ],
+        ])
+        ->postJson(route('admin.pos.checkout'), [
+            'customer_type' => 'booking',
+            'customer_user_id' => $customer->id,
+            'table_id' => $table->id,
+            'discount_percentage' => 0,
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('receipt_printed', true);
 });
 
 test('booking checkout for menu category decrements ingredient stock without decrementing menu stock', function () {
@@ -1061,4 +1148,72 @@ test('non menu item cannot be added to cart when stock is empty', function () {
         ->assertStatus(422)
         ->assertJsonPath('success', false)
         ->assertJsonPath('message', 'Stok tidak mencukupi untuk item ini.');
+});
+
+test('booking checkout prints cashier ticket for items assigned to cashier printer', function () {
+    $admin = adminUser();
+    $customer = User::factory()->create();
+    $area = makePosArea();
+    $table = makePosTable($area);
+
+    $cashierPrinter = Printer::create([
+        'name' => 'Cashier Station',
+        'printer_type' => 'cashier',
+        'location' => 'cashier',
+        'connection_type' => 'log',
+        'port' => 9100,
+        'timeout' => 30,
+        'header' => '126 Club',
+        'footer' => 'Thank you',
+        'width' => 42,
+        'is_default' => false,
+        'is_active' => true,
+    ]);
+
+    $inventoryItem = makePosInventoryItem(['stock_quantity' => 10]);
+    $inventoryItem->printers()->sync([$cashierPrinter->id]);
+
+    TableSession::create([
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'session_code' => 'SESSION-'.uniqid(),
+        'checked_in_at' => now(),
+        'status' => 'active',
+    ]);
+
+    mock(PrinterService::class, function (MockInterface $mock) use ($cashierPrinter): void {
+        $mock->shouldReceive('printCashierTicket')
+            ->once()
+            ->withArgs(function ($order, $printer) use ($cashierPrinter): bool {
+                return $printer->id === $cashierPrinter->id;
+            })
+            ->andReturnTrue();
+
+        $mock->shouldReceive('printKitchenTicket')->never();
+        $mock->shouldReceive('printBarTicket')->never();
+        $mock->shouldReceive('printReceipt')->once()->andReturnTrue();
+    });
+
+    $cartKey = 'item_'.$inventoryItem->id;
+
+    actingAs($admin)
+        ->withSession([
+            'pos_cart' => [
+                $cartKey => [
+                    'id' => $cartKey,
+                    'name' => $inventoryItem->name,
+                    'price' => (float) $inventoryItem->price,
+                    'quantity' => 2,
+                    'preparation_location' => 'kitchen',
+                ],
+            ],
+        ])
+        ->postJson(route('admin.pos.checkout'), [
+            'customer_type' => 'booking',
+            'customer_user_id' => $customer->id,
+            'table_id' => $table->id,
+            'discount_percentage' => 0,
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('success', true);
 });

@@ -112,6 +112,76 @@
         </div>
       </div>
 
+      <!-- Discount request -->
+      <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-2">Discount (Opsional)</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-lg border cursor-pointer has-[:checked]:border-green-500 has-[:checked]:bg-green-50 border-gray-200 hover:border-gray-300 transition">
+              <input type="radio"
+                     name="cb_discount_type"
+                     value="none"
+                     class="sr-only"
+                     checked>
+              <span class="text-xs font-semibold text-gray-700">Tanpa</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-lg border cursor-pointer has-[:checked]:border-green-500 has-[:checked]:bg-green-50 border-gray-200 hover:border-gray-300 transition">
+              <input type="radio"
+                     name="cb_discount_type"
+                     value="percentage"
+                     class="sr-only">
+              <span class="text-xs font-semibold text-gray-700">%</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-lg border cursor-pointer has-[:checked]:border-green-500 has-[:checked]:bg-green-50 border-gray-200 hover:border-gray-300 transition">
+              <input type="radio"
+                     name="cb_discount_type"
+                     value="nominal"
+                     class="sr-only">
+              <span class="text-xs font-semibold text-gray-700">Nominal</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="cbDiscountPercentageBlock"
+             class="hidden">
+          <label for="cb_discount_percentage"
+                 class="block text-xs font-semibold text-gray-600 mb-1.5">Diskon Persentase</label>
+          <input id="cb_discount_percentage"
+                 type="number"
+                 min="0"
+                 max="100"
+                 step="0.01"
+                 placeholder="Contoh: 10"
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
+        </div>
+
+        <div id="cbDiscountNominalBlock"
+             class="hidden">
+          <label for="cb_discount_nominal"
+                 class="block text-xs font-semibold text-gray-600 mb-1.5">Diskon Nominal</label>
+          <input id="cb_discount_nominal_display"
+                 type="text"
+                 inputmode="numeric"
+                 value="Rp 0"
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
+          <input id="cb_discount_nominal"
+                 type="hidden"
+                 value="0">
+        </div>
+
+        <div id="cbDiscountAuthBlock"
+             class="hidden">
+          <label for="cb_discount_auth_code"
+                 class="block text-xs font-semibold text-gray-600 mb-1.5">Auth Code Diskon (4 digit)</label>
+          <input id="cb_discount_auth_code"
+                 type="password"
+                 inputmode="numeric"
+                 maxlength="4"
+                 placeholder="Masukkan auth code"
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
+        </div>
+      </div>
+
       <!-- Payment mode -->
       <div>
         <label class="block text-xs font-semibold text-gray-600 mb-2">Mode Pembayaran</label>
@@ -262,6 +332,7 @@
 </div>
 
 <script>
+  const cbVerifyAuthCodeUrl = @json(route('admin.settings.daily-auth-code.verify'));
   let closeBillingBookingId = null;
   let cbCurrentGrandTotal = 0;
   let cbCheckerIncomplete = false;
@@ -280,6 +351,27 @@
     const display = document.getElementById(`cb_split_${which}_display`);
     hidden.value = String(amount || 0);
     display.value = formatRupiah(amount || 0);
+  }
+
+  function setDiscountNominalInput(amount) {
+    const normalizedAmount = Math.max(Number(amount || 0), 0);
+    document.getElementById('cb_discount_nominal').value = String(normalizedAmount);
+    document.getElementById('cb_discount_nominal_display').value = formatRupiah(normalizedAmount);
+  }
+
+  function getDiscountType() {
+    return document.querySelector('input[name="cb_discount_type"]:checked')?.value || 'none';
+  }
+
+  function updateDiscountUI() {
+    const discountType = getDiscountType();
+    const percentageBlock = document.getElementById('cbDiscountPercentageBlock');
+    const nominalBlock = document.getElementById('cbDiscountNominalBlock');
+    const authBlock = document.getElementById('cbDiscountAuthBlock');
+
+    percentageBlock.classList.toggle('hidden', discountType !== 'percentage');
+    nominalBlock.classList.toggle('hidden', discountType !== 'nominal');
+    authBlock.classList.toggle('hidden', discountType === 'none');
   }
 
   function onSplitInput(which, event) {
@@ -397,12 +489,17 @@
     document.querySelector('input[name="cb_payment_mode"][value="normal"]').checked = true;
     document.querySelector('input[name="cb_payment_method"][value="cash"]').checked = true;
     document.getElementById('cb_payment_reference_number').value = '';
+    document.querySelector('input[name="cb_discount_type"][value="none"]').checked = true;
+    document.getElementById('cb_discount_percentage').value = '';
+    setDiscountNominalInput(0);
+    document.getElementById('cb_discount_auth_code').value = '';
     setSplitInput('cash', 0);
     setSplitInput('non_cash_amount', computedGrandTotal);
     document.getElementById('cb_split_non_cash_method').value = 'debit';
     document.getElementById('cb_split_non_cash_reference_number').value = '';
 
     updatePaymentModeUI();
+    updateDiscountUI();
     updateSplitSummary();
     updateCloseBillingSubmitButton();
 
@@ -477,6 +574,59 @@
     const payload = {
       payment_mode: paymentMode,
     };
+
+    const discountType = getDiscountType();
+    if (discountType !== 'none') {
+      payload.discount_type = discountType;
+
+      if (discountType === 'percentage') {
+        const discountPercentage = Number(document.getElementById('cb_discount_percentage').value || 0);
+
+        if (discountPercentage <= 0 || discountPercentage > 100) {
+          alert('Diskon persentase harus lebih dari 0 dan maksimal 100.');
+          return;
+        }
+
+        payload.discount_percentage = discountPercentage;
+      }
+
+      if (discountType === 'nominal') {
+        const discountNominal = Number(document.getElementById('cb_discount_nominal').value || 0);
+
+        if (discountNominal <= 0) {
+          alert('Diskon nominal harus lebih dari 0.');
+          return;
+        }
+
+        payload.discount_nominal = discountNominal;
+      }
+
+      const discountAuthCode = document.getElementById('cb_discount_auth_code').value.trim();
+      if (!/^\d{4}$/.test(discountAuthCode)) {
+        alert('Auth code diskon harus 4 digit.');
+        return;
+      }
+
+      const verifyRes = await fetch(cbVerifyAuthCodeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          code: discountAuthCode,
+        }),
+      });
+      const verifyData = await verifyRes.json();
+
+      if (!verifyData.valid) {
+        alert('Auth code diskon tidak valid.');
+        return;
+      }
+
+      payload.discount_auth_code = discountAuthCode;
+    }
 
     if (paymentMode === 'normal') {
       const paymentMethod = document.querySelector('input[name="cb_payment_method"]:checked')?.value;
@@ -574,8 +724,17 @@
     radio.addEventListener('change', updatePaymentModeUI);
   });
 
+  document.querySelectorAll('input[name="cb_discount_type"]').forEach((radio) => {
+    radio.addEventListener('change', updateDiscountUI);
+  });
+
   document.querySelectorAll('input[name="cb_payment_method"]').forEach((radio) => {
     radio.addEventListener('change', updatePaymentModeUI);
+  });
+
+  document.getElementById('cb_discount_nominal_display').addEventListener('input', (event) => {
+    const enteredAmount = extractNumber(event.target.value);
+    setDiscountNominalInput(enteredAmount);
   });
 
   document.getElementById('cb_split_cash_display').addEventListener('input', (event) => onSplitInput('cash', event));

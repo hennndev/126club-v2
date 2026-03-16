@@ -21,6 +21,7 @@
     body {
       font-family: 'Courier New', Courier, monospace;
       font-size: 12px;
+      font-weight: 400;
       color: #111;
       background: #fff;
       width: 80mm;
@@ -57,41 +58,44 @@
     }
 
     .two-col .value {
-      font-weight: bold;
+      font-weight: 600;
       text-align: right;
     }
 
-    table.items {
-      width: 100%;
-      border-collapse: collapse;
+    .items-list {
       margin: 4px 0;
     }
 
-    table.items thead th {
-      text-align: left;
+    .receipt-item {
+      padding: 5px 0;
+      border-bottom: 1px dashed #ddd;
+    }
+
+    .receipt-item:last-child {
+      border-bottom: none;
+    }
+
+    .item-meta {
+      margin-top: 2px;
       font-size: 11px;
-      font-weight: bold;
-      padding: 2px 0;
-      border-bottom: 1px solid #333;
+      font-weight: 500;
+      color: #222;
+      line-height: 1.35;
     }
 
-    table.items thead th.right {
-      text-align: right;
-    }
-
-    table.items tbody td {
-      padding: 4px 0 2px;
-      vertical-align: top;
-    }
-
-    table.items tbody td.right {
-      text-align: right;
-      white-space: nowrap;
+    .item-price-total {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
     }
 
     .item-name {
-      font-weight: bold;
+      font-weight: 600;
       font-size: 11px;
+    }
+
+    .item-total {
+      font-weight: 700;
     }
 
     .item-cat {
@@ -106,9 +110,13 @@
       font-size: 11px;
     }
 
+    .total-row span:last-child {
+      font-weight: 600;
+    }
+
     .grand-total {
       font-size: 14px;
-      font-weight: bold;
+      font-weight: 700;
       margin: 6px 0 2px;
     }
 
@@ -187,29 +195,17 @@
   <hr class="sep">
 
   <!-- Items -->
-  <table class="items">
-    <thead>
-      <tr>
-        <th>Item</th>
-        <th class="right">Qty</th>
-        <th class="right">Harga</th>
-        <th class="right">Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      @foreach ($allItems as $item)
-        <tr>
-          <td>
-            <div class="item-name">{{ $item['name'] }}</div>
-            <div class="item-cat">Beverage</div>
-          </td>
-          <td class="right">{{ $item['qty'] }}</td>
-          <td class="right">{{ number_format($item['price'], 0, ',', '.') }}</td>
-          <td class="right">{{ number_format($item['subtotal'], 0, ',', '.') }}</td>
-        </tr>
-      @endforeach
-    </tbody>
-  </table>
+  <div class="items-list">
+    @foreach ($allItems as $item)
+      <div class="receipt-item">
+        <div class="item-name">{{ $item['name'] }} {{ $item['qty'] }}x</div>
+        <div class="item-meta item-price-total">
+          <span>Harga: Rp {{ number_format($item['price'], 0, ',', '.') }}</span>
+          <span class="item-total">Total: Rp {{ number_format($item['subtotal'], 0, ',', '.') }}</span>
+        </div>
+      </div>
+    @endforeach
+  </div>
 
   <hr class="sep">
 

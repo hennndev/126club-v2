@@ -100,7 +100,7 @@
       </div>
     @endcanany
 
-    @canany(['admin.pos.*', 'admin.bookings.*', 'admin.transaction-history.*'])
+    @canany(['admin.pos.*', 'admin.bookings.*', 'admin.transaction-history.*', 'admin.recap.*'])
       <!-- TRANSACTION -->
       <div class="mb-6">
         <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Transaction</h3>
@@ -154,6 +154,24 @@
               </svg>
             </x-slot>
             Riwayat Transaksi
+          </x-nav-link>
+        @endcan
+
+        @can('admin.recap.*')
+          <x-nav-link href="{{ route('admin.recap.index') }}"
+                      :active="request()->routeIs('admin.recap.*')">
+            <x-slot name="icon">
+              <svg class="w-5 h-5"
+                   fill="none"
+                   stroke="currentColor"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 17v-6m3 6V7m3 10v-3m5 7H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v14a2 2 0 01-2 2z" />
+              </svg>
+            </x-slot>
+            Rekapan
           </x-nav-link>
         @endcan
       </div>

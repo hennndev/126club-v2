@@ -2,6 +2,7 @@
 
 use App\Models\Area;
 use App\Models\Billing;
+use App\Models\DailyAuthCode;
 use App\Models\InventoryItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -133,6 +134,95 @@ test('close billing works with normal payment mode', function () {
         ->and($updatedBooking->status)->toBe('completed')
         ->and($updatedSession?->status)->toBe('completed')
         ->and($updatedTable?->status)->toBe('available');
+});
+
+test('close billing rejects discount without valid auth code', function () {
+    $admin = adminUser();
+    [$booking] = makeBookingCloseBillingFixture($admin);
+
+    DailyAuthCode::query()->updateOrCreate(
+        ['date' => now()->format('Y-m-d')],
+        [
+            'code' => '1234',
+            'override_code' => null,
+            'generated_at' => now(),
+        ],
+    );
+
+    $response = actingAs($admin)->postJson(route('admin.bookings.closeBilling', $booking), [
+        'payment_mode' => 'normal',
+        'payment_method' => 'cash',
+        'discount_type' => 'percentage',
+        'discount_percentage' => 10,
+        'discount_auth_code' => '0000',
+    ]);
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonPath('success', false)
+        ->assertJsonPath('errors.discount_auth_code.0', 'Auth code diskon tidak valid.');
+});
+
+test('close billing applies percentage discount with valid auth code', function () {
+    $admin = adminUser();
+    [$booking] = makeBookingCloseBillingFixture($admin);
+
+    DailyAuthCode::query()->updateOrCreate(
+        ['date' => now()->format('Y-m-d')],
+        [
+            'code' => '4321',
+            'override_code' => null,
+            'generated_at' => now(),
+        ],
+    );
+
+    $response = actingAs($admin)->postJson(route('admin.bookings.closeBilling', $booking), [
+        'payment_mode' => 'normal',
+        'payment_method' => 'cash',
+        'discount_type' => 'percentage',
+        'discount_percentage' => 10,
+        'discount_auth_code' => '4321',
+    ]);
+
+    $response
+        ->assertSuccessful()
+        ->assertJsonPath('success', true);
+
+    $updatedBilling = $booking->fresh()->tableSession->billing;
+
+    expect((float) $updatedBilling->discount_amount)->toBe(12000.0)
+        ->and((float) $updatedBilling->grand_total)->toBe(108000.0);
+});
+
+test('close billing applies nominal discount with valid auth code', function () {
+    $admin = adminUser();
+    [$booking] = makeBookingCloseBillingFixture($admin);
+
+    DailyAuthCode::query()->updateOrCreate(
+        ['date' => now()->format('Y-m-d')],
+        [
+            'code' => '6789',
+            'override_code' => null,
+            'generated_at' => now(),
+        ],
+    );
+
+    $response = actingAs($admin)->postJson(route('admin.bookings.closeBilling', $booking), [
+        'payment_mode' => 'normal',
+        'payment_method' => 'cash',
+        'discount_type' => 'nominal',
+        'discount_nominal' => 15000,
+        'discount_auth_code' => '6789',
+    ]);
+
+    $response
+        ->assertSuccessful()
+        ->assertJsonPath('success', true);
+
+    $updatedBilling = $booking->fresh()->tableSession->billing;
+
+    expect((float) $updatedBilling->discount_amount)->toBe(15000.0)
+        ->and((float) $updatedBilling->grand_total)->toBe(105000.0);
 });
 
 test('close billing works with normal non-cash payment and reference number', function () {

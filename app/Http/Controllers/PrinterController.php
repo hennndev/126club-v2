@@ -166,9 +166,13 @@ class PrinterController extends Controller
         try {
             $this->printerService->testPrint($printer);
 
+            $modeMessage = $printer->connection_type === 'log'
+                ? 'Mode LOG (simulasi), jadi tidak mencetak kertas.'
+                : 'Perintah test print sudah dikirim ke printer fisik.';
+
             return response()->json([
                 'success' => true,
-                'message' => 'Test print berhasil. Cek printer Anda.',
+                'message' => "Test print berhasil ke {$printer->name} ({$printer->printer_type}/{$printer->location}). {$modeMessage}",
             ]);
         } catch (\Exception $e) {
             $context = $printer->connection_type === 'network'

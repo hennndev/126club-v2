@@ -51,7 +51,7 @@ class Printer extends Model
 
     public function scopeByType($query, string $type)
     {
-        return $query->where('printer_type', $type);
+        return $query->whereRaw('TRIM(LOWER(printer_type)) = ?', [strtolower(trim($type))]);
     }
 
     public static function getDefault(): ?self
@@ -75,7 +75,29 @@ class Printer extends Model
      */
     public static function getForService(string $serviceLocation): ?self
     {
-        return static::getByType($serviceLocation) ?? static::getByLocation($serviceLocation);
+        $normalized = strtolower(trim($serviceLocation));
+
+        $aliases = match ($normalized) {
+            'cashier', 'kasir' => ['cashier', 'kasir'],
+            'kitchen', 'dapur' => ['kitchen', 'dapur'],
+            default => [$normalized],
+        };
+
+        foreach ($aliases as $alias) {
+            $byType = static::getByType($alias);
+            if ($byType) {
+                return $byType;
+            }
+        }
+
+        foreach ($aliases as $alias) {
+            $byLocation = static::getByLocation($alias);
+            if ($byLocation) {
+                return $byLocation;
+            }
+        }
+
+        return null;
     }
 
     public function inventoryItems(): BelongsToMany
