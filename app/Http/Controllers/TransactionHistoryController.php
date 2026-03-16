@@ -95,7 +95,15 @@ class TransactionHistoryController extends Controller
         $isReprint = $request->boolean('is_reprint');
 
         try {
-            $order->load(['items', 'tableSession.table', 'tableSession.customer', 'kitchenOrder.items.recipe.inventoryItem', 'kitchenOrder.table', 'barOrder.items.recipe.inventoryItem', 'barOrder.items.inventoryItem', 'barOrder.table']);
+            $order->load([
+                'items',
+                'tableSession.table',
+                'tableSession.customer',
+                'kitchenOrder.items.inventoryItem',
+                'kitchenOrder.table',
+                'barOrder.items.inventoryItem',
+                'barOrder.table',
+            ]);
 
             if (! in_array($type, ['resmi', 'kitchen', 'bar'], true)) {
                 return response()->json([

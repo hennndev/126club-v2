@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\PosCategorySetting;
 use App\Models\Printer;
 use App\Models\Tabel;
+use App\Models\TableReservation;
 use App\Models\TableSession;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -97,6 +98,59 @@ test('booking checkout decrements inventory stock', function () {
         ->assertJsonPath('success', true);
 
     expect($inventoryItem->fresh()->stock_quantity)->toBe(7);
+});
+
+test('booking checkout requires waiter assignment for reservation session', function () {
+    $admin = adminUser();
+    $customer = User::factory()->create();
+    $area = makePosArea();
+    $table = makePosTable($area);
+    $inventoryItem = makePosInventoryItem(['stock_quantity' => 10]);
+
+    $reservation = TableReservation::create([
+        'booking_code' => random_int(100000, 999999),
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'reservation_date' => today(),
+        'reservation_time' => now()->format('H:i:s'),
+        'status' => 'checked_in',
+    ]);
+
+    TableSession::create([
+        'table_reservation_id' => $reservation->id,
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'session_code' => 'SESSION-'.uniqid(),
+        'checked_in_at' => now(),
+        'status' => 'active',
+        'waiter_id' => null,
+    ]);
+
+    $cartKey = 'item_'.$inventoryItem->id;
+
+    $response = actingAs($admin)
+        ->withSession([
+            'pos_cart' => [
+                $cartKey => [
+                    'id' => $cartKey,
+                    'name' => $inventoryItem->name,
+                    'price' => (float) $inventoryItem->price,
+                    'quantity' => 1,
+                    'preparation_location' => 'kitchen',
+                ],
+            ],
+        ])
+        ->postJson(route('admin.pos.checkout'), [
+            'customer_type' => 'booking',
+            'customer_user_id' => $customer->id,
+            'table_id' => $table->id,
+            'discount_percentage' => 0,
+        ]);
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonPath('success', false)
+        ->assertJsonPath('message', 'Pilih waiter terlebih dahulu sebelum menyelesaikan transaksi.');
 });
 
 test('pos confirmation modal keeps loading state visible while checkout is processing', function () {

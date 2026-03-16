@@ -498,10 +498,21 @@ class PosController extends Controller
                     ->first();
 
                 if (! $tableSession) {
+                    DB::rollBack();
+
                     return response()->json([
                         'success' => false,
                         'message' => 'Table session tidak ditemukan atau tidak aktif!',
                     ], 404);
+                }
+
+                if ($tableSession->table_reservation_id && ! $tableSession->waiter_id) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pilih waiter terlebih dahulu sebelum menyelesaikan transaksi.',
+                    ], 422);
                 }
 
                 // Generate order number

@@ -806,6 +806,7 @@
               <p x-show="checkoutForm.assignWaiterError"
                  x-text="checkoutForm.assignWaiterError"
                  class="text-xs text-red-500"></p>
+              <p class="text-xs text-amber-600">Transaksi belum bisa diselesaikan sampai waiter dipilih.</p>
             </div>
             <!-- Not assigned + no reservation (walk-in): amber notice -->
             <div x-show="!checkoutForm.waiterName && !checkoutForm.reservationId"
@@ -923,8 +924,8 @@
               Batal
             </button>
             <button type="button"
-                    @click="showConfirmModal = true"
-                    :disabled="!canProceedToCheckout()"
+                    @click="openConfirmModal()"
+                    :disabled="!canProceedToCheckout() || requiresWaiterSelection()"
                     class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition flex items-center justify-center gap-2">
               <svg class="w-4 h-4"
                    fill="none"
@@ -1112,7 +1113,7 @@
           </button>
           <button type="button"
                   @click="submitCheckout()"
-                  :disabled="isProcessing"
+                  :disabled="isProcessing || !canProceedToCheckout() || requiresWaiterSelection()"
                   class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-500 font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             <svg x-show="isProcessing"
                  class="w-4 h-4 animate-spin"
@@ -1941,6 +1942,19 @@
             return this.menuAvailability?.can_checkout !== false;
           },
 
+          requiresWaiterSelection() {
+            return this.checkoutForm.customer_type === 'booking' && !this.checkoutForm.waiterName;
+          },
+
+          openConfirmModal() {
+            if (this.requiresWaiterSelection()) {
+              this.showToastMessage('Pilih waiter terlebih dahulu sebelum menyelesaikan transaksi.', 'error');
+              return;
+            }
+
+            this.showConfirmModal = true;
+          },
+
           selectCustomerType(type) {
             this.checkoutForm.customer_type = type;
             this.showCustomerTypeModal = false;
@@ -2092,6 +2106,11 @@
               return;
             }
 
+            if (this.requiresWaiterSelection()) {
+              this.showToastMessage('Pilih waiter terlebih dahulu sebelum menyelesaikan transaksi.', 'error');
+              return;
+            }
+
             const preview = await this.previewMenuAvailability();
             if (!preview) {
               return;
@@ -2145,7 +2164,8 @@
                     minute: '2-digit',
                   }),
                   items: this.cart.map(i => ({
-                    ...i
+                    ...i,
+                    notes: this.cartNotes[i.id] || '',
                   })),
                 };
                 this.cart = [];
@@ -2243,13 +2263,25 @@
             }
             this.checkerPrinted[type] = true;
             const title = type === 'kitchen' ? 'KITCHEN ORDER' : 'BAR ORDER';
-            const rows = items.map(i =>
-              '<tr><td style="padding:3px 0">' + i.name + '</td><td style="text-align:right;padding:3px 0"><b>' + i.quantity + '</b></td></tr>'
-            ).join('');
-            const css = 'body{font-family:monospace;font-size:12px;margin:0;padding:16px;}' +
+            const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+            } [char]));
+            const rows = items.map(i => {
+              const noteText = String(i.notes || '').trim();
+              const noteRow = noteText ?
+                '<tr><td colspan="2" style="padding:0 0 4px 10px;font-weight:700;font-size:12px">NOTE: ' + escapeHtml(noteText) + '</td></tr>' :
+                '';
+
+              return '<tr><td style="padding:4px 0;font-weight:700;font-size:13px">' + escapeHtml(i.name) + '</td><td style="text-align:right;padding:4px 0;font-weight:700;font-size:13px"><b>' + i.quantity + '</b></td></tr>' + noteRow;
+            }).join('');
+            const css = 'body{font-family:Arial,monospace;font-size:13px;font-weight:600;margin:0;padding:16px;}' +
               'table{width:100%;border-collapse:collapse;}' +
               '.sep{border:none;border-top:1px dashed #000;margin:8px 0;}' +
-              'th{text-align:left;font-size:11px;border-bottom:1px solid #000;padding:2px 0;}' +
+              'th{text-align:left;font-size:12px;font-weight:700;border-bottom:1px solid #000;padding:2px 0;}' +
               'th:last-child{text-align:right;}';
             const watermarkHtml = isReprint ?
               '<p style="text-align:center;font-size:14px;font-weight:bold;color:#dc2626;border:2px solid #dc2626;padding:4px;margin-bottom:8px;letter-spacing:2px;">CETAK ULANG</p>' :

@@ -401,6 +401,11 @@ class PrinterService
             foreach ($kitchenOrder->items as $item) {
                 $name = $item->inventoryItem?->name ?? 'Unknown';
                 $lines[] = "  {$item->quantity}x {$name}";
+
+                $notes = trim((string) ($item->notes ?? ''));
+                if ($notes !== '') {
+                    $lines[] = "    NOTE: {$notes}";
+                }
             }
             $this->logPrint('KITCHEN ORDER', $lines);
 
@@ -435,8 +440,17 @@ class PrinterService
 
             foreach ($kitchenOrder->items as $item) {
                 $name = $item->inventoryItem?->name ?? 'Unknown';
+                $notes = trim((string) ($item->notes ?? ''));
+
                 $escpos->setEmphasis(true);
+                $escpos->setTextSize(1, 2);
                 $escpos->text("  {$item->quantity}x {$name}\n");
+
+                if ($notes !== '') {
+                    $escpos->text("    NOTE: {$notes}\n");
+                }
+
+                $escpos->setTextSize(1, 1);
                 $escpos->setEmphasis(false);
             }
 
@@ -470,6 +484,11 @@ class PrinterService
             foreach ($barOrder->items as $item) {
                 $name = $item->inventoryItem?->name ?? 'Unknown';
                 $lines[] = "  {$item->quantity}x {$name}";
+
+                $notes = trim((string) ($item->notes ?? ''));
+                if ($notes !== '') {
+                    $lines[] = "    NOTE: {$notes}";
+                }
             }
             $this->logPrint('BAR ORDER', $lines);
 
@@ -504,8 +523,17 @@ class PrinterService
 
             foreach ($barOrder->items as $item) {
                 $name = $item->inventoryItem?->name ?? 'Unknown';
+                $notes = trim((string) ($item->notes ?? ''));
+
                 $escpos->setEmphasis(true);
+                $escpos->setTextSize(1, 2);
                 $escpos->text("  {$item->quantity}x {$name}\n");
+
+                if ($notes !== '') {
+                    $escpos->text("    NOTE: {$notes}\n");
+                }
+
+                $escpos->setTextSize(1, 1);
                 $escpos->setEmphasis(false);
             }
 
@@ -539,6 +567,11 @@ class PrinterService
             foreach ($order->items as $item) {
                 $name = $item->inventoryItem?->name ?? 'Unknown';
                 $lines[] = "  {$item->quantity}x {$name}";
+
+                $notes = trim((string) ($item->notes ?? ''));
+                if ($notes !== '') {
+                    $lines[] = "    NOTE: {$notes}";
+                }
             }
             $this->logPrint('CHECKER', $lines);
 
@@ -570,8 +603,17 @@ class PrinterService
 
             foreach ($order->items as $item) {
                 $name = $item->inventoryItem?->name ?? 'Unknown';
+                $notes = trim((string) ($item->notes ?? ''));
+
                 $escpos->setEmphasis(true);
+                $escpos->setTextSize(1, 2);
                 $escpos->text("  {$item->quantity}x {$name}\n");
+
+                if ($notes !== '') {
+                    $escpos->text("    NOTE: {$notes}\n");
+                }
+
+                $escpos->setTextSize(1, 1);
                 $escpos->setEmphasis(false);
             }
 
