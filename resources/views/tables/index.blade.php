@@ -523,8 +523,8 @@
 
         new QRCode(container, {
           text: qrCodeData,
-          width: 256,
-          height: 256,
+          width: 180,
+          height: 180,
           colorDark: "#1e293b",
           colorLight: "#ffffff",
           correctLevel: QRCode.CorrectLevel.H

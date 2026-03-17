@@ -40,7 +40,7 @@
 
       <div class="flex justify-center mb-4">
         <div id="qrcodeContainer"
-             class="p-4 bg-white border-2 border-gray-200 rounded-lg"></div>
+             class="p-3 bg-white border-2 border-gray-200 rounded-lg"></div>
       </div>
 
       <div class="bg-slate-50 rounded-lg p-4 mb-4">
