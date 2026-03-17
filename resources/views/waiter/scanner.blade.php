@@ -1,19 +1,4 @@
 <x-waiter-mobile-layout>
-  @push('styles')
-    <style>
-      #qrCameraContainer video {
-        width: 100% !important;
-        height: 100% !important;
-        object-fit: contain !important;
-      }
-
-      #qrCameraContainer canvas {
-        width: 100% !important;
-        height: 100% !important;
-      }
-    </style>
-  @endpush
-
   <div class="p-5"
        x-data="waiterScanner()"
        x-init="init()">
@@ -62,11 +47,7 @@
 
       <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
         <!-- Camera Preview or Placeholder -->
-        <div :class="cameraActive
-            ?
-            'fixed inset-0 z-[100] h-screen rounded-none mb-0' :
-            'relative mb-5 h-[320px] sm:h-[360px] rounded-xl'"
-             class="overflow-hidden bg-black transition-all duration-200">
+        <div class="relative mb-5 h-[420px] sm:h-[460px] rounded-xl overflow-hidden bg-black transition-all duration-200">
           <!-- Placeholder (camera off) -->
           <div x-show="!cameraActive"
                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-100">
@@ -90,23 +71,9 @@
           <div x-show="cameraActive"
                class="absolute inset-0">
             <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-[97%] max-h-[97%] aspect-square border-4 border-teal-400 rounded-2xl opacity-90 shadow-lg pointer-events-none"></div>
+              <div class="w-[85%] min-w-[240px] max-w-[300px] aspect-square border-4 border-teal-400 rounded-2xl opacity-90 shadow-lg pointer-events-none"></div>
             </div>
 
-            <button type="button"
-                    @click="stopCamera()"
-                    class="absolute top-4 right-4 z-20 inline-flex items-center gap-2 bg-red-600 text-white px-3 py-2 rounded-full text-sm font-semibold shadow-lg">
-              <svg class="w-4 h-4"
-                   fill="none"
-                   stroke="currentColor"
-                   viewBox="0 0 24 24">
-                <path stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Stop
-            </button>
           </div>
         </div>
 
@@ -133,7 +100,6 @@
         </button>
         <button x-show="cameraActive"
                 @click="stopCamera()"
-                style="display: none;"
                 class="w-full bg-red-600 text-white py-4 rounded-full font-bold mb-3">
           Stop Scan
         </button>
@@ -365,17 +331,13 @@
               await new Promise((resolve) => this.$nextTick(resolve));
 
               this.qrScanner = new Html5Qrcode('qrCameraContainer');
-              const viewportRatio = window.innerHeight > 0 ?
-                (window.innerWidth / window.innerHeight) :
-                (16 / 9);
 
               const scanConfig = {
                 fps: 10,
-                aspectRatio: viewportRatio,
                 qrbox: (viewfinderWidth, viewfinderHeight) => {
                   const smallestEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                  const dynamicEdge = Math.floor(smallestEdge * 0.94);
-                  const boxEdge = Math.max(240, Math.min(dynamicEdge, smallestEdge - 12));
+                  const dynamicEdge = Math.floor(smallestEdge * 0.8);
+                  const boxEdge = Math.max(240, Math.min(dynamicEdge, 300));
 
                   return {
                     width: boxEdge,
