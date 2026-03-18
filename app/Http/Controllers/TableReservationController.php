@@ -32,6 +32,8 @@ class TableReservationController extends Controller
 
     public function index(Request $request)
     {
+        $this->reconcileTableStatuses();
+
         $query = TableReservation::with(['table.area', 'customer.profile', 'customer.customerUser', 'tableSession.billing']);
 
         if ($request->filled('search')) {
@@ -640,8 +642,21 @@ class TableReservationController extends Controller
 
                 $booking->update(['status' => 'completed']);
 
-                $table = Tabel::find($booking->table_id);
-                $table?->update(['status' => 'available']);
+                $tableIdsToSync = collect([
+                    $booking->table_id,
+                    $session->table_id,
+                ])->filter()->unique()->values();
+
+                foreach ($tableIdsToSync as $tableId) {
+                    $hasOtherActiveSession = TableSession::query()
+                        ->where('table_id', $tableId)
+                        ->where('status', 'active')
+                        ->exists();
+
+                    Tabel::query()
+                        ->where('id', $tableId)
+                        ->update(['status' => $hasOtherActiveSession ? 'occupied' : 'available']);
+                }
             });
 
             $billing->refresh();
@@ -805,6 +820,40 @@ class TableReservationController extends Controller
             'tax_base' => $taxBase,
             'tax_and_service_base' => $taxAndServiceBase,
         ];
+    }
+
+    protected function reconcileTableStatuses(): void
+    {
+        $occupiedTableIds = TableSession::query()
+            ->where('status', 'active')
+            ->pluck('table_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $reservedTableIds = TableReservation::query()
+            ->where('status', 'confirmed')
+            ->pluck('table_id')
+            ->filter()
+            ->unique()
+            ->reject(fn ($tableId) => $occupiedTableIds->contains($tableId))
+            ->values();
+
+        Tabel::query()
+            ->whereIn('id', $occupiedTableIds)
+            ->where('status', '!=', 'maintenance')
+            ->update(['status' => 'occupied']);
+
+        Tabel::query()
+            ->whereIn('id', $reservedTableIds)
+            ->where('status', '!=', 'maintenance')
+            ->update(['status' => 'reserved']);
+
+        Tabel::query()
+            ->whereNotIn('id', $occupiedTableIds->merge($reservedTableIds)->unique()->values())
+            ->whereIn('status', ['occupied', 'reserved'])
+            ->where('status', '!=', 'maintenance')
+            ->update(['status' => 'available']);
     }
 
     /**

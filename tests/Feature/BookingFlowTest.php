@@ -640,6 +640,40 @@ test('bookings page shows close billing button when live orders total meets mini
         ->assertSee('Tutup Billing');
 });
 
+test('bookings page reconciles stale occupied table status after session already closed', function () {
+    $admin = adminUser();
+    $area = makeArea();
+    $table = makeTable($area, ['status' => 'occupied']);
+    $customer = makeBookingCustomer();
+
+    $booking = TableReservation::create([
+        'booking_code' => rand(1000, 9999),
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'reservation_date' => now()->toDateString(),
+        'reservation_time' => now()->format('H:i:s'),
+        'status' => 'completed',
+    ]);
+
+    TableSession::create([
+        'table_reservation_id' => $booking->id,
+        'table_id' => $table->id,
+        'customer_id' => $customer->id,
+        'session_code' => 'SESSION-'.uniqid(),
+        'checked_in_at' => now()->subHours(2),
+        'checked_out_at' => now()->subHour(),
+        'status' => 'completed',
+    ]);
+
+    expect($table->fresh()->status)->toBe('occupied');
+
+    $this->actingAs($admin)
+        ->get(route('admin.bookings.index'))
+        ->assertOk();
+
+    expect($table->fresh()->status)->toBe('available');
+});
+
 test('admin can unassign a waiter from an active session', function () {
     $admin = adminUser();
     $area = makeArea();
