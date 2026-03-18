@@ -124,9 +124,10 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
   @foreach ($tables as $table)
     @php
-      $isBooked = $table->status === 'reserved';
-      $isCheckedIn = $table->status === 'occupied';
       $tableBooking = $activeBookingsByTable[$table->id] ?? null;
+      $bookingStatus = (string) ($tableBooking?->status ?? '');
+      $isCheckedIn = $bookingStatus === 'checked_in' || $table->status === 'occupied';
+      $isBooked = ! $isCheckedIn && ($bookingStatus === 'confirmed' || $table->status === 'reserved');
     @endphp
     <div x-show="selectedCategory === null || selectedCategory === {{ $table->area_id }}"
          class="rounded-xl p-4 border transition-all cursor-pointer hover:shadow-md
