@@ -159,6 +159,7 @@
         @php
           $billing = $tableBooking->tableSession?->billing;
           $sessionChargePreview = $tableBooking->tableSession ? $activeSessionChargePreviews[$tableBooking->tableSession->id] ?? null : null;
+          $ordersForEligibility = (float) ($sessionChargePreview['orders_total'] ?? ($billing?->orders_total ?? 0));
           $checkerItems = $tableBooking->tableSession?->orders?->flatMap->items?->where('status', '!=', 'cancelled') ?? collect();
           $checkerTotalItems = $checkerItems->count();
           $checkerCheckedItems = $checkerItems->where('status', 'served')->count();
@@ -167,11 +168,11 @@
           {{ $tableBooking->booking_name ?? ($tableBooking->customer?->name ?? '-') }}
         </p>
         @if ($billing && in_array($billing->billing_status, ['draft', 'finalized']))
-          @if ($billing->orders_total >= $billing->minimum_charge)
+          @if ($ordersForEligibility >= (float) ($billing->minimum_charge ?? 0))
             <button type="button"
                     data-booking-id="{{ $tableBooking->id }}"
                     data-minimum-charge="{{ (float) $billing->minimum_charge }}"
-                    data-orders-total="{{ (float) ($sessionChargePreview['orders_total'] ?? 0) }}"
+                    data-orders-total="{{ $ordersForEligibility }}"
                     data-discount-amount="{{ (float) ($sessionChargePreview['discount_amount'] ?? 0) }}"
                     data-service-charge="{{ (float) ($sessionChargePreview['service_charge'] ?? 0) }}"
                     data-tax="{{ (float) ($sessionChargePreview['tax'] ?? 0) }}"
@@ -186,7 +187,7 @@
             </button>
           @else
             <p class="mt-1 text-xs text-slate-500 font-medium">
-              Kurang Rp {{ number_format($billing->minimum_charge - $billing->orders_total, 0, ',', '.') }}
+              Kurang Rp {{ number_format(max((float) ($billing->minimum_charge ?? 0) - $ordersForEligibility, 0), 0, ',', '.') }}
             </p>
           @endif
         @endif
